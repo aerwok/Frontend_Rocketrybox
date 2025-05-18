@@ -5,20 +5,8 @@ import { motion } from "framer-motion";
 import { useFormContext } from "react-hook-form";
 import { type CreateOrderInput } from "@/lib/validations/order";
 import { Button } from "@/components/ui/button";
-import { ChevronsUpDownIcon} from "lucide-react";
-import { useState } from "react";
-
-interface CourierRate {
-    courier: string;
-    image: string;
-    mode: string;
-    shipping: number;
-    gst: number;
-    total: number;
-}
-
-type SortField = "courier" | "mode" | "shipping" | "gst" | "total";
-type SortOrder = "asc" | "desc";
+import { ChevronsUpDownIcon, Loader2 } from "lucide-react";
+import { useCourierRates, type SortField } from "@/hooks/useCourierRates";
 
 interface CourierRatesModalProps {
     isOpen: boolean;
@@ -26,63 +14,30 @@ interface CourierRatesModalProps {
     onSelect?: (courierType: string) => void;
 }
 
-const courierRates: CourierRate[] = [
-    {
-        courier: "BLUE DART",
-        image: "/images/customer/courier1.png",
-        mode: "air-0.50kg",
-        shipping: 111,
-        gst: 19.98,
-        total: 130.98
-    },
-    {
-        courier: "DELHIVERY",
-        image: "/images/customer/courier2.png",
-        mode: "surface-0.50kg",
-        shipping: 95,
-        gst: 17.1,
-        total: 112.1
-    },
-    {
-        courier: "DTDC",
-        image: "/images/customer/courier3.png",
-        mode: "surface-0.50kg",
-        shipping: 78,
-        gst: 14.04,
-        total: 92.04
-    },
-    {
-        courier: "ECOM EXPRESS",
-        image: "/images/customer/courier4.png",
-        mode: "surface-0.50kg",
-        shipping: 80,
-        gst: 14.4,
-        total: 94.4
-    },
-    {
-        courier: "EKART",
-        image: "/images/customer/courier5.png",
-        mode: "surface-0.50kg",
-        shipping: 63,
-        gst: 11.34,
-        total: 74.34
-    },
-    {
-        courier: "EXPRESS BEES",
-        image: "/images/customer/courier6.png",
-        mode: "surface-0.50kg",
-        shipping: 100,
-        gst: 18,
-        total: 118
-    }
-];
-
+/**
+ * Courier Rates Modal Component
+ * 
+ * This component handles:
+ * - Displaying available courier rates
+ * - Sorting and filtering rates
+ * - Loading states during data fetch
+ * - Error handling and display
+ * - Courier selection
+ * 
+ * @param {CourierRatesModalProps} props - Component props
+ * @returns {JSX.Element} Rendered component
+ */
 const CourierRatesModal = ({ isOpen, onClose, onSelect }: CourierRatesModalProps) => {
-
     const form = useFormContext<CreateOrderInput>();
-
-    const [sortField, setSortField] = useState<SortField>("total");
-    const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+    const {
+        rates,
+        loading,
+        error,
+        sortField,
+        sortOrder,
+        setSortField,
+        setSortOrder,
+    } = useCourierRates();
 
     const handleSort = (field: SortField) => {
         if (sortField === field) {
@@ -92,21 +47,6 @@ const CourierRatesModal = ({ isOpen, onClose, onSelect }: CourierRatesModalProps
             setSortOrder("asc");
         }
     };
-
-    const sortedRates = [...courierRates].sort((a, b) => {
-        const aValue = a[sortField];
-        const bValue = b[sortField];
-
-        if (typeof aValue === "string" && typeof bValue === "string") {
-            return sortOrder === "asc"
-                ? aValue.localeCompare(bValue)
-                : bValue.localeCompare(aValue);
-        }
-
-        return sortOrder === "asc"
-            ? Number(aValue) - Number(bValue)
-            : Number(bValue) - Number(aValue);
-    });
 
     const handleShipSelected = () => {
         const selectedCourier = form.watch("courierType");
@@ -147,9 +87,15 @@ const CourierRatesModal = ({ isOpen, onClose, onSelect }: CourierRatesModalProps
             <DialogContent className="max-w-5xl">
                 <DialogHeader className="flex flex-row items-center justify-between">
                     <DialogTitle>
-                        Shippping Options
+                        Shipping Options
                     </DialogTitle>
                 </DialogHeader>
+
+                {error && (
+                    <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
+                        {error}
+                    </div>
+                )}
 
                 <div className="mt-4">
                     <FormField
@@ -178,48 +124,65 @@ const CourierRatesModal = ({ isOpen, onClose, onSelect }: CourierRatesModalProps
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {sortedRates.map((rate, index) => (
-                                                        <motion.tr
-                                                            key={index}
-                                                            initial={{ opacity: 0, y: 10 }}
-                                                            animate={{ opacity: 1, y: 0 }}
-                                                            transition={{ delay: index * 0.1 }}
-                                                            className="border-t hover:bg-muted/50"
-                                                        >
-                                                            <td className="p-3">
-                                                                <div className="flex items-center gap-3">
-                                                                    <img
-                                                                        src={rate.image}
-                                                                        alt={rate.courier}
-                                                                        className="h-8 w-auto object-contain"
-                                                                    />
-                                                                    <span className="sr-only">
-                                                                        {rate.courier}
-                                                                    </span>
+                                                    {loading ? (
+                                                        <tr>
+                                                            <td colSpan={6} className="p-8 text-center">
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                    Loading courier rates...
                                                                 </div>
                                                             </td>
-                                                            <td className="p-3">
-                                                                {rate.mode}
+                                                        </tr>
+                                                    ) : rates.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                                                                No courier rates available
                                                             </td>
-                                                            <td className="p-3 text-left pl-4">
-                                                                ₹{rate.shipping}
-                                                            </td>
-                                                            <td className="p-3 text-left pl-4">
-                                                                ₹{rate.gst}
-                                                            </td>
-                                                            <td className="p-3 text-left pl-4 font-medium">
-                                                                ₹{rate.total}
-                                                            </td>
-                                                            <td className="p-3 text-left">
-                                                                <FormControl>
-                                                                    <RadioGroupItem
-                                                                        value={rate.courier}
-                                                                        className="mt-1"
-                                                                    />
-                                                                </FormControl>
-                                                            </td>
-                                                        </motion.tr>
-                                                    ))}
+                                                        </tr>
+                                                    ) : (
+                                                        rates.map((rate, index) => (
+                                                            <motion.tr
+                                                                key={index}
+                                                                initial={{ opacity: 0, y: 10 }}
+                                                                animate={{ opacity: 1, y: 0 }}
+                                                                transition={{ delay: index * 0.1 }}
+                                                                className="border-t hover:bg-muted/50"
+                                                            >
+                                                                <td className="p-3">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <img
+                                                                            src={rate.image}
+                                                                            alt={rate.courier}
+                                                                            className="h-8 w-auto object-contain"
+                                                                        />
+                                                                        <span className="sr-only">
+                                                                            {rate.courier}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="p-3">
+                                                                    {rate.mode}
+                                                                </td>
+                                                                <td className="p-3 text-left pl-4">
+                                                                    ₹{rate.shipping}
+                                                                </td>
+                                                                <td className="p-3 text-left pl-4">
+                                                                    ₹{rate.gst}
+                                                                </td>
+                                                                <td className="p-3 text-left pl-4 font-medium">
+                                                                    ₹{rate.total}
+                                                                </td>
+                                                                <td className="p-3 text-left">
+                                                                    <FormControl>
+                                                                        <RadioGroupItem
+                                                                            value={rate.courier}
+                                                                            className="mt-1"
+                                                                        />
+                                                                    </FormControl>
+                                                                </td>
+                                                            </motion.tr>
+                                                        ))
+                                                    )}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -234,15 +197,23 @@ const CourierRatesModal = ({ isOpen, onClose, onSelect }: CourierRatesModalProps
                     <Button
                         variant="outline"
                         onClick={onClose}
+                        disabled={loading}
                     >
                         Close
                     </Button>
                     <Button
                         variant="customer"
                         onClick={handleShipSelected}
-                        disabled={!form.watch("courierType")}
+                        disabled={loading || !form.watch("courierType")}
                     >
-                        Ship Selected
+                        {loading ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Loading...
+                            </>
+                        ) : (
+                            'Ship Selected'
+                        )}
                     </Button>
                 </div>
             </DialogContent>

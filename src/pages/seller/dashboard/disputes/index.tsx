@@ -1,464 +1,324 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
-import { ArrowUpDown, Search } from "lucide-react";
-import { useState } from "react";
-import BulkDisputeUploadModal from "@/components/seller/disputes/bulk-dispute-upload-modal";
-import { Link } from "react-router-dom";
+import { useState } from 'react';
+import { useDisputes, useDisputeFilters } from '../../../../hooks/useDisputes';
+import { Button } from '../../../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../../components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '../../../../components/ui/alert';
+import { Input } from '../../../../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../../components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../../components/ui/table';
+import { Loader2, Search, Filter, X } from 'lucide-react';
+import { format } from 'date-fns';
+import { DisputeStatus, DisputePriority, DisputeCategory, Dispute } from '../../../../types/dispute';
 
-interface DisputeData {
-    awbNumber: string;
-    disputeDate: string;
-    orderId: string;
-    given: string;
-    applied: string;
-    revised: string;
-    accepted: string;
-    difference: string;
-    status: "Active" | "Inactive";
-}
-
-const allData: DisputeData[] = [
-    {
-        awbNumber: "fffff",
-        disputeDate: "11/11/11",
-        orderId: "12345",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Active"
-    },
-    {
-        awbNumber: "yyhhh",
-        disputeDate: "11/11/11",
-        orderId: "45679",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Active"
-    },
-    {
-        awbNumber: "hvhvh",
-        disputeDate: "11/11/11",
-        orderId: "89646",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Active"
-    },
-    {
-        awbNumber: "hvhjv",
-        disputeDate: "11/11/11",
-        orderId: "78996",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Inactive"
-    },
-    {
-        awbNumber: "hvhv",
-        disputeDate: "11/11/11",
-        orderId: "78877",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Active"
-    },
-    {
-        awbNumber: "hvjvj",
-        disputeDate: "11/11/11",
-        orderId: "23446",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Active"
-    },
-    {
-        awbNumber: "hjvjvjv",
-        disputeDate: "11/11/11",
-        orderId: "67889",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Inactive"
-    },
-    {
-        awbNumber: "jvjvjv",
-        disputeDate: "11/11/11",
-        orderId: "89976",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Active"
-    },
-    {
-        awbNumber: "jvjvkvk",
-        disputeDate: "11/11/11",
-        orderId: "13353",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Active"
-    },
-    {
-        awbNumber: "jkbkbkb",
-        disputeDate: "11/11/11",
-        orderId: "67890",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Inactive"
-    },
-    {
-        awbNumber: "knkbk",
-        disputeDate: "11/12/12",
-        orderId: "67899",
-        given: "xyz",
-        applied: "null",
-        revised: "null",
-        accepted: "null",
-        difference: "xyz",
-        status: "Active"
-    }
-];
-
-const actionRequiredData = allData.filter(item => item.status === "Active");
-const actionRequestedData = allData.filter(item => item.status === "Inactive");
-
-const openDisputeData: DisputeData[] = [
-    {
-        awbNumber: "OD12345",
-        disputeDate: "21/03/24",
-        orderId: "ORD789",
-        given: "2.5kg",
-        applied: "3.2kg",
-        revised: "2.8kg",
-        accepted: "pending",
-        difference: "0.7kg",
-        status: "Active"
-    },
-    {
-        awbNumber: "OD67890",
-        disputeDate: "20/03/24",
-        orderId: "ORD456",
-        given: "1.8kg",
-        applied: "2.5kg",
-        revised: "2.0kg",
-        accepted: "pending",
-        difference: "0.7kg",
-        status: "Active"
-    }
-];
-
-const closedDisputeData: DisputeData[] = [
-    {
-        awbNumber: "CD98765",
-        disputeDate: "15/03/24",
-        orderId: "ORD123",
-        given: "3.0kg",
-        applied: "4.2kg",
-        revised: "3.5kg",
-        accepted: "rejected",
-        difference: "1.2kg",
-        status: "Inactive"
-    },
-    {
-        awbNumber: "CD43210",
-        disputeDate: "14/03/24",
-        orderId: "ORD987",
-        given: "5.0kg",
-        applied: "6.1kg",
-        revised: "5.5kg",
-        accepted: "rejected",
-        difference: "1.1kg",
-        status: "Inactive"
-    }
-];
-
-const closedResolvedData: DisputeData[] = [
-    {
-        awbNumber: "CR11111",
-        disputeDate: "10/03/24",
-        orderId: "ORD111",
-        given: "2.0kg",
-        applied: "2.8kg",
-        revised: "2.4kg",
-        accepted: "accepted",
-        difference: "0.8kg",
-        status: "Inactive"
-    },
-    {
-        awbNumber: "CR22222",
-        disputeDate: "09/03/24",
-        orderId: "ORD222",
-        given: "4.2kg",
-        applied: "5.0kg",
-        revised: "4.5kg",
-        accepted: "accepted",
-        difference: "0.8kg",
-        status: "Inactive"
-    }
-];
-
-const DisputeTable = ({ data }: { data: DisputeData[] }) => {
-
-    const [sortConfig, setSortConfig] = useState<{
-        key: keyof DisputeData;
-        direction: 'asc' | 'desc';
-    } | null>(null);
-
-    const sortedData = [...data].sort((a, b) => {
-        if (!sortConfig) return 0;
-
-        const { key, direction } = sortConfig;
-        if (a[key] < b[key]) return direction === 'asc' ? -1 : 1;
-        if (a[key] > b[key]) return direction === 'asc' ? 1 : -1;
-        return 0;
-    });
-
-    const handleSort = (key: keyof DisputeData) => {
-        setSortConfig(current => ({
-            key,
-            direction: current?.key === key && current.direction === 'asc' ? 'desc' : 'asc',
-        }));
-    };
+/**
+ * Dispute Summary Component
+ * Displays summary statistics for disputes
+ */
+const DisputeSummary = ({ summary }: { summary: any }) => {
+    if (!summary) return null;
 
     return (
-        <Table>
-            <TableHeader className="bg-[#F4F2FF] h-12">
-                <TableRow className="hover:bg-[#F4F2FF]">
-                    <TableHead onClick={() => handleSort('awbNumber')} className="cursor-pointer text-black min-w-[120px] whitespace-nowrap">
-                        AWB Number <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                    </TableHead>
-                    <TableHead onClick={() => handleSort('disputeDate')} className="cursor-pointer text-black min-w-[120px] whitespace-nowrap">
-                        Dispute Date <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                    </TableHead>
-                    <TableHead onClick={() => handleSort('orderId')} className="cursor-pointer text-black min-w-[120px] whitespace-nowrap">
-                        Order ID <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                    </TableHead>
-                    <TableHead onClick={() => handleSort('given')} className="cursor-pointer text-black min-w-[100px] whitespace-nowrap">
-                        Given <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                    </TableHead>
-                    <TableHead onClick={() => handleSort('applied')} className="cursor-pointer text-black min-w-[100px] whitespace-nowrap">
-                        Applied <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                    </TableHead>
-                    <TableHead onClick={() => handleSort('revised')} className="cursor-pointer text-black min-w-[100px] whitespace-nowrap">
-                        Revised <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                    </TableHead>
-                    <TableHead onClick={() => handleSort('accepted')} className="cursor-pointer text-black min-w-[120px] whitespace-nowrap">
-                        Accepted <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                    </TableHead>
-                    <TableHead onClick={() => handleSort('difference')} className="cursor-pointer text-black min-w-[120px] whitespace-nowrap">
-                        Difference <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                    </TableHead>
-                    <TableHead onClick={() => handleSort('status')} className="cursor-pointer text-black min-w-[120px] whitespace-nowrap">
-                        Status <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                    </TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {sortedData.map((row, index) => (
-                    <TableRow key={index} className="h-12">
-                        <TableCell className="whitespace-nowrap">
-                            <Link
-                                to={`/seller/dashboard/disputes/${row.awbNumber}`}
-                                className="text-violet-600 hover:underline"
-                            >
-                                {row.awbNumber}
-                            </Link>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                            {row.disputeDate}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                            <Link
-                                to={`/seller/dashboard/disputes/${row.orderId}`}
-                                className="text-violet-600 hover:underline"
-                            >
-                                {row.orderId}
-                            </Link>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                            {row.given}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                            {row.applied}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                            {row.revised}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                            {row.accepted}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                            {row.difference}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                            <span className={cn(
-                                "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
-                                row.status === 'Active'
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-neutral-100 text-neutral-800"
-                            )}>
-                                <div className={cn(
-                                    "size-1.5 mr-1 rounded-full",
-                                    row.status === 'Active'
-                                        ? "bg-green-500"
-                                        : "bg-neutral-500"
-                                )} />
-                                {row.status}
-                            </span>
-                        </TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
-    );
-};
-
-const SellerDisputePage = () => {
-
-    const [searchQuery, setSearchQuery] = useState<string>("");
-    const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
-
-    return (
-        <div className="space-y-8 overflow-hidden">
-            <h1 className="text-xl lg:text-2xl font-semibold">
-                Disputes
-            </h1>
-
-            <Tabs defaultValue="all" className="w-full">
-                <div className="w-[calc(100vw-5rem)] lg:w-full -mr-4 lg:mr-0">
-                    <div className="w-full overflow-x-auto scrollbar-hide">
-                        <TabsList className="w-max min-w-full p-0 h-12 z-0 bg-white rounded-none relative">
-                            <div className="absolute bottom-0 w-full h-px -z-10 bg-violet-200"></div>
-                            <TabsTrigger
-                                value="all"
-                                className="flex-1 h-full data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-black whitespace-nowrap px-4"
-                            >
-                                All
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="action-required"
-                                className="flex-1 h-full data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-black whitespace-nowrap px-4"
-                            >
-                                Action Required
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="action-requested"
-                                className="flex-1 h-full data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-black whitespace-nowrap px-4"
-                            >
-                                Action Requested
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="open-dispute"
-                                className="flex-1 h-full data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-black whitespace-nowrap px-4"
-                            >
-                                Open Dispute
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="closed-dispute"
-                                className="flex-1 h-full data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-black whitespace-nowrap px-4"
-                            >
-                                Closed Dispute
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="closed-resolved"
-                                className="flex-1 h-full data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-black whitespace-nowrap px-4"
-                            >
-                                Closed Resolved
-                            </TabsTrigger>
-                        </TabsList>
-                    </div>
-                </div>
-
-                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 py-4 w-full">
-                    <div className="flex items-center gap-2 w-full">
-                        <div className="relative flex-1 px-px">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                            <Input
-                                placeholder="Search Users by Name, Email or Date"
-                                className="pl-9 w-full bg-[#F8F7FF]"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant="purple"
-                            className="text-xs md:text-sm"
-                            onClick={() => setIsUploadModalOpen(true)}
-                        >
-                            UPLOAD DISPUTE
-                        </Button>
-                    </div>
-                </div>
-
-                <div className="w-[calc(100vw-4rem)] lg:w-full -mr-4 lg:mr-0">
-                    <div className="w-full overflow-x-auto">
-                        <TabsContent value="all" className="mt-2 min-w-full">
-                            <DisputeTable data={allData} />
-                        </TabsContent>
-
-                        <TabsContent value="action-required" className="mt-2 min-w-full">
-                            <DisputeTable data={actionRequiredData} />
-                        </TabsContent>
-
-                        <TabsContent value="action-requested" className="mt-2 min-w-full">
-                            <DisputeTable data={actionRequestedData} />
-                        </TabsContent>
-
-                        <TabsContent value="open-dispute" className="mt-2 min-w-full">
-                            <DisputeTable data={openDisputeData} />
-                        </TabsContent>
-
-                        <TabsContent value="closed-dispute" className="mt-2 min-w-full">
-                            <DisputeTable data={closedDisputeData} />
-                        </TabsContent>
-
-                        <TabsContent value="closed-resolved" className="mt-2 min-w-full">
-                            <DisputeTable data={closedResolvedData} />
-                        </TabsContent>
-                    </div>
-                </div>
-            </Tabs>
-
-            <BulkDisputeUploadModal
-                open={isUploadModalOpen}
-                onClose={() => setIsUploadModalOpen(false)}
-            />
+        <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Disputes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{summary.total}</div>
+                    <p className="text-xs text-muted-foreground">
+                        Total disputes
+                    </p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Open</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{summary.open}</div>
+                    <p className="text-xs text-muted-foreground">
+                        Active disputes
+                    </p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{summary.inProgress}</div>
+                    <p className="text-xs text-muted-foreground">
+                        Being handled
+                    </p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Resolved</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{summary.resolved}</div>
+                    <p className="text-xs text-muted-foreground">
+                        Successfully resolved
+                    </p>
+                </CardContent>
+            </Card>
         </div>
     );
 };
 
-export default SellerDisputePage; 
+/**
+ * Dispute Filters Component
+ * Handles filtering of disputes
+ */
+const DisputeFilters = () => {
+    const { filters, setFilters, applyFilters, resetFilters } = useDisputeFilters();
+
+    const handleSearch = (value: string) => {
+        setFilters({ ...filters, search: value });
+    };
+
+    const handleStatusChange = (value: string) => {
+        setFilters({ ...filters, status: value as DisputeStatus });
+    };
+
+    const handlePriorityChange = (value: string) => {
+        setFilters({ ...filters, priority: value as DisputePriority });
+    };
+
+    const handleCategoryChange = (value: string) => {
+        setFilters({ ...filters, category: value as DisputeCategory });
+    };
+
+    return (
+        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            <div className="flex-1">
+                <Input
+                    placeholder="Search disputes..."
+                    value={filters.search || ''}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    className="max-w-sm"
+                />
+            </div>
+            <div className="flex items-center gap-2">
+                <Select
+                    value={filters.status}
+                    onValueChange={handleStatusChange}
+                >
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">All Status</SelectItem>
+                        {Object.values(DisputeStatus).map((status) => (
+                            <SelectItem key={status} value={status}>
+                                {status.replace(/_/g, ' ').toLowerCase()}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Select
+                    value={filters.priority}
+                    onValueChange={handlePriorityChange}
+                >
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">All Priority</SelectItem>
+                        {Object.values(DisputePriority).map((priority) => (
+                            <SelectItem key={priority} value={priority}>
+                                {priority.toLowerCase()}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Select
+                    value={filters.category}
+                    onValueChange={handleCategoryChange}
+                >
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">All Categories</SelectItem>
+                        {Object.values(DisputeCategory).map((category) => (
+                            <SelectItem key={category} value={category}>
+                                {category.replace(/_/g, ' ').toLowerCase()}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={applyFilters}
+                >
+                    <Filter className="h-4 w-4" />
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetFilters}
+                >
+                    <X className="h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Dispute Table Component
+ * Displays list of disputes
+ */
+const DisputeTable = () => {
+    const { disputes, isLoading, error, resolveDispute, closeDispute, reopenDispute } = useDisputes();
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        );
+    }
+
+    if (disputes.length === 0) {
+        return (
+            <Alert>
+                <AlertTitle>No Disputes</AlertTitle>
+                <AlertDescription>No disputes found</AlertDescription>
+            </Alert>
+        );
+    }
+
+    return (
+        <div className="rounded-md border">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {disputes.map((dispute: Dispute) => (
+                        <TableRow key={dispute.id}>
+                            <TableCell>{dispute.orderId}</TableCell>
+                            <TableCell>
+                                <div>
+                                    <div className="font-medium">{dispute.customerName}</div>
+                                    <div className="text-sm text-gray-500">{dispute.customerEmail}</div>
+                                </div>
+                            </TableCell>
+                            <TableCell>
+                                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800">
+                                    {dispute.category.replace(/_/g, ' ').toLowerCase()}
+                                </span>
+                            </TableCell>
+                            <TableCell>
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                    dispute.priority === DisputePriority.URGENT ? 'bg-red-100 text-red-800' :
+                                    dispute.priority === DisputePriority.HIGH ? 'bg-orange-100 text-orange-800' :
+                                    dispute.priority === DisputePriority.MEDIUM ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-green-100 text-green-800'
+                                }`}>
+                                    {dispute.priority.toLowerCase()}
+                                </span>
+                            </TableCell>
+                            <TableCell>
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                    dispute.status === DisputeStatus.RESOLVED ? 'bg-green-100 text-green-800' :
+                                    dispute.status === DisputeStatus.CLOSED ? 'bg-gray-100 text-gray-800' :
+                                    dispute.status === DisputeStatus.REOPENED ? 'bg-orange-100 text-orange-800' :
+                                    dispute.status === DisputeStatus.IN_PROGRESS ? 'bg-blue-100 text-blue-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                    {dispute.status.replace(/_/g, ' ').toLowerCase()}
+                                </span>
+                            </TableCell>
+                            <TableCell>
+                                {format(new Date(dispute.createdAt), 'PPP')}
+                            </TableCell>
+                            <TableCell>
+                                <div className="flex items-center gap-2">
+                                    {dispute.status === DisputeStatus.OPEN && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => resolveDispute(dispute.id, '')}
+                                        >
+                                            Resolve
+                                        </Button>
+                                    )}
+                                    {dispute.status === DisputeStatus.RESOLVED && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => closeDispute(dispute.id)}
+                                        >
+                                            Close
+                                        </Button>
+                                    )}
+                                    {dispute.status === DisputeStatus.CLOSED && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => reopenDispute(dispute.id)}
+                                        >
+                                            Reopen
+                                        </Button>
+                                    )}
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </div>
+    );
+};
+
+/**
+ * Disputes Page Component
+ * Main component for the disputes dashboard
+ */
+export default function DisputesPage() {
+    const { summary } = useDisputes();
+
+    return (
+        <div className="container mx-auto py-8">
+            <div className="flex items-center justify-between mb-8">
+                <h1 className="text-3xl font-bold">Disputes</h1>
+            </div>
+
+            <div className="space-y-8">
+                <DisputeSummary summary={summary} />
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Dispute Management</CardTitle>
+                        <CardDescription>Manage and resolve customer disputes</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <DisputeFilters />
+                        <DisputeTable />
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+} 

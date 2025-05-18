@@ -1,45 +1,30 @@
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
-import { useState, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Menu, X, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useCustomerNav } from "@/hooks/useCustomerNav";
 
-interface NavLink {
-    label: string;
-    href: string;
-}
-
-const navLinks: NavLink[] = [
-    { label: "Home", href: "/customer/home" },
-    { label: "Create Order", href: "/customer/create-order" },
-    { label: "My Orders", href: "/customer/orders" },
-    { label: "Profile", href: "/customer/profile" },
-];
-
+/**
+ * Customer Navigation Bar Component
+ * 
+ * This component handles:
+ * - Responsive navigation menu
+ * - Authentication state
+ * - Loading and error states
+ * - Mobile menu toggle
+ * 
+ * @returns {JSX.Element} Rendered component
+ */
 const CustomerNavbar = () => {
     const location = useLocation();
-    const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState<boolean>(false);
-
-    useEffect(() => {
-        // Check if user is authenticated
-        const isAuthenticated = localStorage.getItem('customer_token');
-        const isAuthPage = location.pathname === "/customer/login" || location.pathname === "/customer/register";
-        
-        // TEMPORARY BYPASS: Comment this out before deployment
-        // This bypass allows access to customer sections without authentication
-        /*
-        if (!isAuthenticated && !isAuthPage) {
-            navigate('/customer/login');
-        }
-        */
-        
-        // TEMPORARY: Set a dummy token for development
-        if (!isAuthenticated && !isAuthPage) {
-            localStorage.setItem('customer_token', 'DEVELOPMENT_BYPASS_TOKEN');
-            console.warn('⚠️ DEVELOPMENT MODE: Using authentication bypass for customer. REMOVE BEFORE DEPLOYMENT!');
-        }
-    }, [navigate, location.pathname]);
+    const {
+        navLinks,
+        loading,
+        error,
+        isAuthPage,
+    } = useCustomerNav();
 
     const isActiveLink = (href: string) => {
         if (href === "/customer/home" && location.pathname === "/customer") {
@@ -48,7 +33,9 @@ const CustomerNavbar = () => {
         return location.pathname === href;
     };
 
-    const isAuthPage = location.pathname === "/customer/login" || location.pathname === "/customer/register";
+    const toggleMenu = () => {
+        setIsOpen(!isOpen);
+    };
 
     if (isAuthPage) {
         return (
@@ -63,7 +50,6 @@ const CustomerNavbar = () => {
             >
                 <div className="container mx-auto px-4">
                     <div className="flex items-center justify-between h-16">
-                        {/* Logo */}
                         <motion.div
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
@@ -82,10 +68,6 @@ const CustomerNavbar = () => {
         );
     }
 
-    const toggleMenu = () => {
-        setIsOpen(!isOpen);
-    };
-
     return (
         <motion.header
             initial={{ y: -100 }}
@@ -98,7 +80,6 @@ const CustomerNavbar = () => {
         >
             <div className="container mx-auto px-4">
                 <div className="flex items-center justify-between h-16">
-                    {/* Logo */}
                     <motion.div
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -112,36 +93,49 @@ const CustomerNavbar = () => {
                         </Link>
                     </motion.div>
 
+                    {error && (
+                        <div className="text-sm text-red-500">
+                            {error}
+                        </div>
+                    )}
+
                     {/* Desktop Nav */}
                     <div className="hidden lg:flex items-center space-x-1">
-                        <motion.div
-                            initial={{ opacity: 0, y: -20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="flex items-center justify-center px-1 py-2 rounded-lg bg-main text-white gap-x-1"
-                        >
-                            {navLinks.map((link, index) => (
-                                <motion.div
-                                    key={link.href}
-                                    initial={{ opacity: 0, y: -20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.1 * (index + 1) }}
-                                    whileTap={{ scale: 0.95 }}
-                                >
-                                    <Link
-                                        to={link.href}
-                                        className={cn(
-                                            "px-4 py-1.5 rounded-md transition-all duration-200",
-                                            isActiveLink(link.href)
-                                                ? "bg-white/20 font-medium"
-                                                : "hover:bg-white/10"
-                                        )}
+                        {loading ? (
+                            <div className="flex items-center gap-2">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Loading...
+                            </div>
+                        ) : (
+                            <motion.div
+                                initial={{ opacity: 0, y: -20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                                className="flex items-center justify-center px-1 py-2 rounded-lg bg-main text-white gap-x-1"
+                            >
+                                {navLinks.map((link, index) => (
+                                    <motion.div
+                                        key={link.href}
+                                        initial={{ opacity: 0, y: -20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.1 * (index + 1) }}
+                                        whileTap={{ scale: 0.95 }}
                                     >
-                                        {link.label}
-                                    </Link>
-                                </motion.div>
-                            ))}
-                        </motion.div>
+                                        <Link
+                                            to={link.href}
+                                            className={cn(
+                                                "px-4 py-1.5 rounded-md transition-all duration-200",
+                                                isActiveLink(link.href)
+                                                    ? "bg-white/20 font-medium"
+                                                    : "hover:bg-white/10"
+                                            )}
+                                        >
+                                            {link.label}
+                                        </Link>
+                                    </motion.div>
+                                ))}
+                            </motion.div>
+                        )}
                     </div>
 
                     {/* Mobile Menu Button */}
@@ -194,29 +188,36 @@ const CustomerNavbar = () => {
                                 transition={{ duration: 0.2 }}
                                 className="p-4 bg-main text-white rounded-lg mb-4"
                             >
-                                <nav className="flex flex-col gap-1">
-                                    {navLinks.map((link, index) => (
-                                        <motion.div
-                                            key={link.href}
-                                            initial={{ opacity: 0, x: -20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: 0.05 * (index + 1) }}
-                                        >
-                                            <Link
-                                                to={link.href}
-                                                className={cn(
-                                                    "px-4 py-2 rounded-lg block transition-all duration-200",
-                                                    isActiveLink(link.href)
-                                                        ? "bg-white/20 font-medium"
-                                                        : "hover:bg-white/10"
-                                                )}
-                                                onClick={() => setIsOpen(false)}
+                                {loading ? (
+                                    <div className="flex items-center justify-center gap-2 py-4">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Loading...
+                                    </div>
+                                ) : (
+                                    <nav className="flex flex-col gap-1">
+                                        {navLinks.map((link, index) => (
+                                            <motion.div
+                                                key={link.href}
+                                                initial={{ opacity: 0, x: -20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: 0.05 * (index + 1) }}
                                             >
-                                                {link.label}
-                                            </Link>
-                                        </motion.div>
-                                    ))}
-                                </nav>
+                                                <Link
+                                                    to={link.href}
+                                                    className={cn(
+                                                        "px-4 py-2 rounded-lg block transition-all duration-200",
+                                                        isActiveLink(link.href)
+                                                            ? "bg-white/20 font-medium"
+                                                            : "hover:bg-white/10"
+                                                    )}
+                                                    onClick={() => setIsOpen(false)}
+                                                >
+                                                    {link.label}
+                                                </Link>
+                                            </motion.div>
+                                        ))}
+                                    </nav>
+                                )}
                             </motion.div>
                         </motion.div>
                     )}

@@ -1,531 +1,225 @@
-import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { toast } from "sonner";
-import {
-    ArrowLeftIcon,
-    Copy,
-    Edit,
-    Printer,
-    X,
-    RefreshCw
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { useParams } from 'react-router-dom';
+import { useOrder } from '../../../../hooks/useOrders';
+import { Button } from '../../../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../../components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '../../../../components/ui/alert';
+import { Loader2, ArrowLeft, Printer, Download } from 'lucide-react';
+import { format } from 'date-fns';
+import { Link } from 'react-router-dom';
+import { OrderStatus, PaymentStatus } from '../../../../types/order';
 
-// Order details interface
-interface OrderDetails {
-    orderId: string;
-        date: string;
-    totalAmount: string;
-    payment: "COD" | "Prepaid";
-    channel: "MANUAL" | "EXCEL" | "SHOPIFY" | "WOOCOMMERCE" | "AMAZON" | "FLIPKART" | "OPENCART" | "API";
-    shipmentType: "Forward" | "Reverse";
-    weight: string;
-    category: string;
-    status: "not-booked" | "processing" | "booked" | "cancelled" | "shipment-cancelled" | "error";
-    customerDetails: {
-        name: string;
-        address: string;
-        phone: string;
-    };
-    warehouseDetails: {
-        name: string;
-        address: string;
-        phone: string;
-    };
-    products: {
-        name: string;
-        sku: string;
-        quantity: number;
-        price: number;
-        total: number;
-        image: string;
-    }[];
-}
+/**
+ * Order Status Badge Component
+ * Displays order status with appropriate styling
+ */
+const OrderStatusBadge = ({ status }: { status: OrderStatus }) => (
+  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+    status === OrderStatus.DELIVERED ? 'bg-green-100 text-green-800' :
+    status === OrderStatus.CANCELLED ? 'bg-red-100 text-red-800' :
+    status === OrderStatus.SHIPPED ? 'bg-blue-100 text-blue-800' :
+    'bg-yellow-100 text-yellow-800'
+  }`}>
+    {status.toLowerCase().replace(/_/g, ' ')}
+  </span>
+);
 
-const SellerOrderDetailsPage = () => {
-    const { id } = useParams();
-    const navigate = useNavigate();
-    const [isUpdateTrackingOpen, setIsUpdateTrackingOpen] = useState(false);
-    const [trackingNumber, setTrackingNumber] = useState("");
-    const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-    const [cancelReason, setCancelReason] = useState("");
+/**
+ * Payment Status Badge Component
+ * Displays payment status with appropriate styling
+ */
+const PaymentStatusBadge = ({ status }: { status: PaymentStatus }) => (
+  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+    status === PaymentStatus.PAID ? 'bg-green-100 text-green-800' :
+    status === PaymentStatus.FAILED ? 'bg-red-100 text-red-800' :
+    'bg-yellow-100 text-yellow-800'
+  }`}>
+    {status.toLowerCase()}
+  </span>
+);
 
-    // Mock order details data
-    const [orderDetails] = useState<OrderDetails>({
-        orderId: id || "ORD-2024-001",
-        date: "2024-02-20",
-        totalAmount: "₹97497.00",
-        payment: "COD",
-        channel: "MANUAL",
-        shipmentType: "Forward",
-        weight: "2.5 kg",
-        category: "Gaming",
-        status: "not-booked",
-        customerDetails: {
-            name: "Rahul Sharma",
-            address: "Flat 303, Tower B, Green Valley Apartments\nSector 62, Noida\nNOIDA, UTTAR PRADESH 201309\nIndia",
-            phone: "9876543210"
-        },
-        warehouseDetails: {
-            name: "RocketryBox Warehouse",
-            address: "Plot No. 123, Industrial Area\nPUNE, MAHARASHTRA 411014\nIndia",
-            phone: "020-12345678"
-        },
-        products: [
-            {
-                name: "Gaming Laptop",
-                sku: "LAP-GAM-001",
-                quantity: 1,
-                price: 89999.00,
-                total: 89999.00,
-                image: "/images/gaming-laptop.jpg"
-            },
-            {
-                name: "Gaming Mouse",
-                sku: "MOU-GAM-001",
-                quantity: 2,
-                price: 2499.00,
-                total: 4998.00,
-                image: "/images/gaming-mouse.jpg"
-            },
-            {
-                name: "Gaming Headset",
-                sku: "HEA-GAM-001",
-                quantity: 1,
-                price: 4999.00,
-                total: 4999.00,
-                image: "/images/gaming-headset.jpg"
-            }
-        ]
-    });
+/**
+ * Order Detail Page Component
+ * Displays detailed information about a single order
+ */
+export default function OrderDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const {
+    order,
+    isLoading,
+    error,
+    updateOrder,
+    cancelOrder,
+    generateShippingLabel
+  } = useOrder(id || null);
 
-    const handleCopy = (text: string) => {
-        navigator.clipboard.writeText(text);
-        toast.success("Copied to clipboard");
-    };
-
-    const handleEdit = () => {
-        navigate(`/seller/dashboard/orders/edit/${id}`);
-        toast.success("Navigating to edit order");
-    };
-
-    const handleDuplicate = () => {
-        navigate('/seller/dashboard/new-order', {
-            state: { duplicateFrom: orderDetails }
-        });
-        toast.success("Order duplicated. Create a new order with the same details.");
-    };
-
-    const handlePrintLabel = () => {
-        toast.promise(
-            new Promise((resolve) => setTimeout(resolve, 2000)),
-            {
-                loading: 'Generating shipping label...',
-                success: () => {
-                    // Create a simple text content for the PDF (in a real app, this would be actual PDF content)
-                    const textContent = `
-                    SHIPPING LABEL
-                    ------------------
-                    Order ID: ${orderDetails.orderId}
-                    Date: ${orderDetails.date}
-                    
-                    Customer:
-                    ${orderDetails.customerDetails.name}
-                    ${orderDetails.customerDetails.address}
-                    Phone: ${orderDetails.customerDetails.phone}
-                    
-                    Warehouse:
-                    ${orderDetails.warehouseDetails.name}
-                    ${orderDetails.warehouseDetails.address}
-                    
-                    Weight: ${orderDetails.weight}
-                    Shipment Type: ${orderDetails.shipmentType}
-                    
-                    Products:
-                    ${orderDetails.products.map(p => `${p.quantity}x ${p.name} (${p.sku})`).join('\n')}
-                    `;
-                    
-                    // Create a blob with the text content
-                    const blob = new Blob([textContent], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    
-                    // Create a download link and trigger the download
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.setAttribute('download', `shipping-label-${orderDetails.orderId}.txt`);
-                    document.body.appendChild(link);
-                    link.click();
-                    
-                    // Clean up
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                    
-                    return 'Shipping label downloaded successfully';
-                },
-                error: 'Failed to generate shipping label'
-            }
-        );
-    };
-
-    const handlePrintInvoice = () => {
-        toast.promise(
-            new Promise((resolve) => setTimeout(resolve, 2000)),
-            {
-                loading: 'Generating invoice...',
-                success: () => {
-                    // Calculate total
-                    const subtotal = orderDetails.products.reduce((sum, product) => sum + product.total, 0);
-                    const tax = subtotal * 0.18; // Assuming 18% tax
-                    const total = subtotal + tax;
-                    
-                    // Create a simple text content for the PDF (in a real app, this would be actual PDF content)
-                    const textContent = `
-                    INVOICE
-                    ------------------
-                    Invoice #: INV-${orderDetails.orderId}
-                    Date: ${orderDetails.date}
-                    
-                    Billed To:
-                    ${orderDetails.customerDetails.name}
-                    ${orderDetails.customerDetails.address}
-                    Phone: ${orderDetails.customerDetails.phone}
-                    
-                    Products:
-                    ${orderDetails.products.map(p => 
-                        `${p.quantity}x ${p.name} (${p.sku}) - ₹${p.price.toFixed(2)}/item - ₹${p.total.toFixed(2)}`
-                    ).join('\n')}
-                    
-                    Subtotal: ₹${subtotal.toFixed(2)}
-                    Tax (18%): ₹${tax.toFixed(2)}
-                    Total: ₹${total.toFixed(2)}
-                    
-                    Payment Method: ${orderDetails.payment}
-                    
-                    Thank you for your business!
-                    `;
-                    
-                    // Create a blob with the text content
-                    const blob = new Blob([textContent], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    
-                    // Create a download link and trigger the download
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.setAttribute('download', `invoice-${orderDetails.orderId}.txt`);
-                    document.body.appendChild(link);
-                    link.click();
-                    
-                    // Clean up
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                    
-                    return 'Invoice downloaded successfully';
-                },
-                error: 'Failed to generate invoice'
-            }
-        );
-    };
-
-    const handleCancelOrder = () => {
-        setIsCancelDialogOpen(true);
-    };
-
-    const confirmCancelOrder = () => {
-        if (!cancelReason.trim()) {
-            toast.error("Please provide a reason for cancellation");
-            return;
-        }
-
-        toast.promise(
-            new Promise((resolve) => setTimeout(resolve, 2000)),
-            {
-                loading: 'Cancelling order...',
-                success: () => {
-                    setIsCancelDialogOpen(false);
-                    setCancelReason("");
-                    navigate("/seller/dashboard/orders");
-                    return 'Order cancelled successfully';
-                },
-                error: 'Failed to cancel order'
-            }
-        );
-    };
-
-    const handleMarkAsShipped = () => {
-        toast.promise(
-            new Promise((resolve) => setTimeout(resolve, 2000)),
-            {
-                loading: 'Updating order status...',
-                success: 'Order marked as shipped',
-                error: 'Failed to update order status'
-            }
-        );
-    };
-
-    const handleUpdateTracking = () => {
-        setIsUpdateTrackingOpen(true);
-    };
-
-    const confirmUpdateTracking = () => {
-        if (!trackingNumber.trim()) {
-            toast.error("Please provide a tracking number");
-            return;
-        }
-
-        toast.promise(
-            new Promise((resolve) => setTimeout(resolve, 2000)),
-            {
-                loading: 'Updating tracking number...',
-                success: () => {
-                    setIsUpdateTrackingOpen(false);
-                    setTrackingNumber("");
-                    return 'Tracking number updated successfully';
-                },
-                error: 'Failed to update tracking number'
-            }
-        );
-    };
-
+  if (isLoading) {
     return (
-        <div className="container py-4 max-w-7xl mx-auto">
-            {/* Header with back button and actions */}
-            <div className="flex items-center mb-4">
-                <Link to="/seller/dashboard/orders" className="mr-4">
-                    <ArrowLeftIcon className="h-5 w-5" />
-                </Link>
-                <h1 className="text-lg font-semibold">Order Details</h1>
-
-                <div className="flex ml-auto space-x-2">
-                    <Button variant="outline" size="sm" onClick={handleEdit}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleDuplicate}>
-                        <Copy className="h-4 w-4 mr-2" />
-                        Duplicate
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handlePrintLabel}>
-                        <Printer className="h-4 w-4 mr-2" />
-                        Print Label
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handlePrintInvoice}>
-                        <Printer className="h-4 w-4 mr-2" />
-                        Print Invoice
-                    </Button>
-                    <Button variant="destructive" size="sm" onClick={handleCancelOrder}>
-                        <X className="h-4 w-4 mr-2" />
-                        Cancel Order
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleMarkAsShipped}>
-                        Mark as Shipped
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleUpdateTracking}>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Update Tracking
-                        </Button>
-                </div>
-                </div>
-
-            {/* Order information section */}
-            <Card className="mb-4">
-                <CardContent className="p-6">
-                    <h2 className="text-lg font-semibold mb-4">Order Information</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div>
-                            <div className="text-sm text-gray-500">Order ID</div>
-                            <div className="flex items-center">
-                                <span className="font-medium">{orderDetails.orderId}</span>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 ml-2" onClick={() => handleCopy(orderDetails.orderId)}>
-                                    <Copy className="h-4 w-4" />
-                            </Button>
-                            </div>
-                        </div>
-                        <div>
-                            <div className="text-sm text-gray-500">Order Date</div>
-                            <div className="font-medium">{orderDetails.date}</div>
-                        </div>
-                        <div>
-                            <div className="text-sm text-gray-500">Total Amount</div>
-                            <div className="font-medium">{orderDetails.totalAmount}</div>
-                            </div>
-                        <div>
-                            <div className="text-sm text-gray-500">Payment Type</div>
-                            <div className="font-medium">{orderDetails.payment}</div>
-                            </div>
-                        <div>
-                            <div className="text-sm text-gray-500">Order Channel</div>
-                            <div className="font-medium">{orderDetails.channel}</div>
-                            </div>
-                        <div>
-                            <div className="text-sm text-gray-500">Shipment Type</div>
-                            <div className="font-medium">{orderDetails.shipmentType}</div>
-                        </div>
-                        <div>
-                            <div className="text-sm text-gray-500">Weight</div>
-                            <div className="font-medium">{orderDetails.weight}</div>
-                            </div>
-                        <div>
-                            <div className="text-sm text-gray-500">Status</div>
-                            <Badge variant="outline" className="bg-yellow-50 text-yellow-800 border-yellow-200">
-                                {orderDetails.status}
-                            </Badge>
-                            </div>
-                        <div>
-                            <div className="text-sm text-gray-500">Category</div>
-                            <div className="font-medium">{orderDetails.category}</div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Customer and Warehouse details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                {/* Customer details */}
-                <Card>
-                    <CardContent className="p-6">
-                        <h2 className="text-lg font-semibold mb-4">Customer Details</h2>
-                        <div className="space-y-3">
-                            <div>
-                                <div className="text-sm text-gray-500">Name</div>
-                                <div className="font-medium">{orderDetails.customerDetails.name}</div>
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-500">Address</div>
-                                <div className="whitespace-pre-line">{orderDetails.customerDetails.address}</div>
-                                        </div>
-                            <div>
-                                <div className="text-sm text-gray-500">Phone</div>
-                                <div className="font-medium">{orderDetails.customerDetails.phone}</div>
-                                        </div>
-                                    </div>
-                    </CardContent>
-                </Card>
-
-                {/* Warehouse details */}
-                <Card>
-                    <CardContent className="p-6">
-                        <h2 className="text-lg font-semibold mb-4">Warehouse Details</h2>
-                        <div className="space-y-3">
-                            <div>
-                                <div className="text-sm text-gray-500">Name</div>
-                                <div className="font-medium">{orderDetails.warehouseDetails.name}</div>
-                                </div>
-                            <div>
-                                <div className="text-sm text-gray-500">Address</div>
-                                <div className="whitespace-pre-line">{orderDetails.warehouseDetails.address}</div>
-                                                    </div>
-                            <div>
-                                <div className="text-sm text-gray-500">Phone</div>
-                                <div className="font-medium">{orderDetails.warehouseDetails.phone}</div>
-                                                            </div>
-                                                        </div>
-                    </CardContent>
-                </Card>
-                                                    </div>
-
-            {/* Products table */}
-            <Card>
-                <CardContent className="p-6">
-                    <h2 className="text-lg font-semibold mb-4">Products</h2>
-                    <Table>
-                        <TableHeader className="bg-gray-50">
-                            <TableRow>
-                                <TableHead className="w-12">PRODUCT</TableHead>
-                                <TableHead>SKU</TableHead>
-                                <TableHead className="text-center">QUANTITY</TableHead>
-                                <TableHead className="text-right">PRICE</TableHead>
-                                <TableHead className="text-right">TOTAL</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {orderDetails.products.map((product, index) => (
-                                <TableRow key={index}>
-                                    <TableCell className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
-                                            <img src={product.image} alt={product.name} className="h-8 w-8 object-contain" />
-                                                        </div>
-                                        <span className="font-medium">{product.name}</span>
-                                    </TableCell>
-                                    <TableCell>{product.sku}</TableCell>
-                                    <TableCell className="text-center">{product.quantity}</TableCell>
-                                    <TableCell className="text-right">₹{product.price.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right">₹{product.total.toFixed(2)}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                    <div className="flex justify-end mt-6">
-                        <div className="w-64">
-                            <div className="flex justify-between font-medium text-lg">
-                                <span>Total Amount:</span>
-                                <span>{orderDetails.totalAmount}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </CardContent>
-                    </Card>
-
-            {/* Update Tracking Dialog */}
-            <Dialog open={isUpdateTrackingOpen} onOpenChange={setIsUpdateTrackingOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Update Tracking Number</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Label htmlFor="tracking-number">Tracking Number</Label>
-                        <Input
-                            id="tracking-number"
-                            value={trackingNumber}
-                            onChange={(e) => setTrackingNumber(e.target.value)}
-                            placeholder="Enter tracking number"
-                            className="mt-2"
-                                                                />
-                                                            </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsUpdateTrackingOpen(false)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={confirmUpdateTracking}>
-                            Update
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Cancel Order Dialog */}
-            <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Cancel Order</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Label htmlFor="cancel-reason">Reason for Cancellation</Label>
-                        <Input
-                            id="cancel-reason"
-                            value={cancelReason}
-                            onChange={(e) => setCancelReason(e.target.value)}
-                            placeholder="Enter reason for cancellation"
-                            className="mt-2"
-                        />
-                                                            </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsCancelDialogOpen(false)}>
-                            Go Back
-                            </Button>
-                        <Button variant="destructive" onClick={confirmCancelOrder}>
-                                Cancel Order
-                            </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
     );
-};
+  }
 
-export default SellerOrderDetailsPage; 
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!order) {
+    return (
+      <Alert>
+        <AlertTitle>Not Found</AlertTitle>
+        <AlertDescription>Order not found</AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="container mx-auto py-8">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+          >
+            <Link to="/seller/dashboard/orders">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Orders
+            </Link>
+          </Button>
+          <h1 className="text-3xl font-bold">Order {order.orderId}</h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => generateShippingLabel()}
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Print Label
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Order Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Order Details</CardTitle>
+            <CardDescription>Basic information about the order</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-sm font-medium text-gray-500">Order ID</div>
+                <div>{order.orderId}</div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-gray-500">Date</div>
+                <div>{format(new Date(order.createdAt), 'PPP')}</div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-gray-500">Status</div>
+                <OrderStatusBadge status={order.status} />
+              </div>
+              <div>
+                <div className="text-sm font-medium text-gray-500">Payment</div>
+                <PaymentStatusBadge status={order.paymentStatus} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Customer Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Customer Information</CardTitle>
+            <CardDescription>Contact and shipping details</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <div className="text-sm font-medium text-gray-500">Name</div>
+              <div>{order.customerName}</div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-500">Email</div>
+              <div>{order.customerEmail}</div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-500">Phone</div>
+              <div>{order.customerPhone}</div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-500">Shipping Address</div>
+              <div className="mt-1">
+                {order.shippingAddress.addressLine1}<br />
+                {order.shippingAddress.addressLine2 && (
+                  <>{order.shippingAddress.addressLine2}<br /></>
+                )}
+                {order.shippingAddress.city}, {order.shippingAddress.state}<br />
+                {order.shippingAddress.pincode}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Order Items */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Order Items</CardTitle>
+            <CardDescription>Products in this order</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {order.items.map((item) => (
+                <div key={item.id} className="flex items-center justify-between py-4 border-b last:border-0">
+                  <div>
+                    <div className="font-medium">{item.name}</div>
+                    {item.variant && (
+                      <div className="text-sm text-gray-500">Variant: {item.variant}</div>
+                    )}
+                    {item.sku && (
+                      <div className="text-sm text-gray-500">SKU: {item.sku}</div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div>₹{item.price.toFixed(2)} × {item.quantity}</div>
+                    <div className="font-medium">₹{item.total.toFixed(2)}</div>
+                  </div>
+                </div>
+              ))}
+              <div className="flex justify-between items-center pt-4 border-t">
+                <div>Subtotal</div>
+                <div>₹{order.subtotal.toFixed(2)}</div>
+              </div>
+              <div className="flex justify-between items-center">
+                <div>Shipping</div>
+                <div>₹{order.shippingCost.toFixed(2)}</div>
+              </div>
+              <div className="flex justify-between items-center">
+                <div>Tax</div>
+                <div>₹{order.tax.toFixed(2)}</div>
+              </div>
+              <div className="flex justify-between items-center font-bold">
+                <div>Total</div>
+                <div>₹{order.total.toFixed(2)}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+} 

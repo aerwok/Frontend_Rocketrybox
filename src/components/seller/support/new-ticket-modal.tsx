@@ -15,8 +15,6 @@ import {
 } from "@/components/ui/select";
 import { X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
 import {
     Form,
     FormControl,
@@ -26,29 +24,38 @@ import {
     FormMessage,
 } from "@/components/ui/form";
 import { toast } from "sonner";
-import { categories, TicketFormValues, ticketFormSchema } from "@/lib/validations/support";
+import { categories } from "@/lib/validations/support";
+import { useTicketCreation } from "@/hooks/useTicketCreation";
 
 interface NewTicketModalProps {
     open: boolean;
     onClose: () => void;
 }
 
+/**
+ * New Ticket Modal Component
+ * 
+ * This component handles:
+ * - Ticket creation form
+ * - File attachment handling
+ * - Form validation
+ * - Loading and error states
+ * 
+ * @param {NewTicketModalProps} props - Component props
+ * @returns {JSX.Element} Rendered component
+ */
 const NewTicketModal = ({ open, onClose }: NewTicketModalProps) => {
+    const {
+        form,
+        isSubmitting,
+        error,
+        handleSubmit,
+    } = useTicketCreation();
 
-    const form = useForm<TicketFormValues>({
-        resolver: zodResolver(ticketFormSchema),
-        defaultValues: {
-            subject: "",
-            contactNumber: "",
-            details: "",
-        },
-    });
-
-    const onSubmit = async (data: TicketFormValues) => {
+    const onSubmit = async (data: any) => {
         try {
-            console.log("Form data:", data);
+            await handleSubmit(data);
             toast.success("Ticket created successfully!");
-            form.reset();
             onClose();
         } catch (error) {
             toast.error("Failed to create ticket. Please try again.");
@@ -183,12 +190,34 @@ const NewTicketModal = ({ open, onClose }: NewTicketModalProps) => {
                             )}
                         />
 
+                        {error && (
+                            <p className="text-sm text-red-500">
+                                {error}
+                            </p>
+                        )}
+
                         <div className="flex justify-end gap-4">
-                            <Button type="button" variant="outline" onClick={onClose}>
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                onClick={onClose}
+                                disabled={isSubmitting}
+                            >
                                 Close
                             </Button>
-                            <Button type="submit" className="bg-[#7F56D9] hover:bg-[#6941C6]">
-                                New Ticket
+                            <Button 
+                                type="submit" 
+                                className="bg-[#7F56D9] hover:bg-[#6941C6]"
+                                disabled={isSubmitting}
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <span className="animate-spin h-4 w-4 border-2 border-white border-opacity-50 border-t-transparent rounded-full mr-2" />
+                                        Creating...
+                                    </>
+                                ) : (
+                                    'New Ticket'
+                                )}
                             </Button>
                         </div>
                     </form>

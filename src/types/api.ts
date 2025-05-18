@@ -237,16 +237,15 @@ export interface WalletTransaction {
 // API Response Types
 export interface ApiResponse<T> {
     data: T;
-    message: string;
+    message?: string;
     status: number;
-    success: boolean;
 }
 
 export interface ApiError {
     message: string;
     code: string;
     status: number;
-    details?: unknown;
+    details?: Record<string, unknown>;
 }
 
 // Pagination Types
@@ -258,13 +257,11 @@ export interface PaginationParams {
 }
 
 export interface PaginatedResponse<T> {
-    data: T[];
-    pagination: {
-        total: number;
-        page: number;
-        limit: number;
-        pages: number;
-    };
+    items: T[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
 }
 
 // WebSocket Types
@@ -373,4 +370,94 @@ export const ERROR_CODES = {
 export const RATE_LIMITS = {
     authenticated: 100,
     unauthenticated: 20,
-} as const; 
+} as const;
+
+// User related types
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Post related types
+export interface Post {
+  id: string;
+  title: string;
+  content: string;
+  authorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Menu Types
+export interface MenuItem {
+  icon: any; // Using any for now since we're using Lucide icons
+  to: string;
+  label: string;
+  permissions?: string[];
+}
+
+// Navigation Types
+export interface NavLink {
+  to: string;
+  label: string;
+  permissions?: string[];
+}
+
+/**
+ * Common Entity Types
+ */
+export interface BaseEntity {
+    id: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface Address {
+    street: string;
+    city: string;
+    state: string;
+    pincode: string;
+    country: string;
+}
+
+export interface ContactInfo {
+    email: string;
+    phone: string;
+}
+
+/**
+ * Common Status Types
+ */
+export enum EntityStatus {
+    ACTIVE = 'active',
+    INACTIVE = 'inactive',
+    PENDING = 'pending',
+    DELETED = 'deleted'
+}
+
+export enum SortOrder {
+    ASC = 'asc',
+    DESC = 'desc'
+}
+
+/**
+ * Common Filter Types
+ */
+export interface DateRange {
+    startDate: string;
+    endDate: string;
+}
+
+export interface SearchParams {
+    query: string;
+    fields?: string[];
+}
+
+export interface FilterParams {
+    status?: EntityStatus;
+    dateRange?: DateRange;
+    search?: SearchParams;
+} 

@@ -6,6 +6,7 @@ import {
     OrderFilters, 
     OrderStats 
 } from '@/services/seller-order.service';
+import { orderDataApi, OrderItem, OrderStatus } from '@/services/api/orderData';
 
 // Mock data for testing
 const mockOrders: OrderData[] = [
@@ -292,212 +293,154 @@ interface OrderDataState {
     selectedOrders: string[];
 }
 
+interface UseOrderDataReturn {
+    // Order data state
+    orders: OrderData[];
+    totalOrders: number;
+    currentPage: number;
+    isLoading: boolean;
+    error: string | null;
 
-export const useOrderData = () => {
-    const [state, setState] = useState<OrderDataState>({
-        loading: false,
-        error: null,
-        orders: null,
-        stats: null,
-        filters: {},
-        selectedOrders: []
-    });
+    // Order data operations
+    fetchOrders: (page?: number, limit?: number, filters?: OrderFilters) => Promise<void>;
+    getOrder: (orderId: string) => Promise<OrderData>;
+    getOrderStatus: (orderId: string) => Promise<OrderStatus>;
+    getOrderItems: (orderId: string) => Promise<OrderItem[]>;
+    getOrderStats: () => Promise<{ total: number; byStatus: Record<OrderStatus, number> }>;
+}
 
-    const fetchOrders = useCallback(async () => {
-        setState(prev => ({ ...prev, loading: true, error: null }));
+/**
+ * useOrderData Hook
+ * 
+ * Manages order data state and operations:
+ * - Fetch orders with pagination and filters
+ * - Get order details
+ * - Get order status
+ * - Get order items
+ * - Get order statistics
+ * - Loading and error states
+ * 
+ * @returns {UseOrderDataReturn} Order data state and operations
+ */
+export const useOrderData = (): UseOrderDataReturn => {
+    const [orders, setOrders] = useState<OrderData[]>([]);
+    const [totalOrders, setTotalOrders] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    /**
+     * Fetch orders with pagination and filters
+     * @param {number} page - Page number
+     * @param {number} limit - Items per page
+     * @param {OrderFilters} filters - Order filters
+     */
+    const fetchOrders = useCallback(async (page: number = 1, limit: number = 10, filters?: OrderFilters) => {
         try {
-            if (USE_MOCK_DATA) {
-                // Simulate API delay
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // Filter mock data based on filters
-                let filteredOrders = [...mockOrders];
-                if (state.filters.status) {
-                    filteredOrders = filteredOrders.filter(order => order.status === state.filters.status);
-                }
-                if (state.filters.search) {
-                    const searchTerm = state.filters.search.toLowerCase();
-                    filteredOrders = filteredOrders.filter(order => 
-                        order.orderId.toLowerCase().includes(searchTerm) ||
-                        order.customer.toLowerCase().includes(searchTerm) ||
-                        order.contact.toLowerCase().includes(searchTerm) ||
-                        order.items.some(item => item.name.toLowerCase().includes(searchTerm)) ||
-                        order.amount.toLowerCase().includes(searchTerm) ||
-                        order.payment.toLowerCase().includes(searchTerm) ||
-                        order.chanel.toLowerCase().includes(searchTerm) ||
-                        order.weight.toLowerCase().includes(searchTerm) ||
-                        order.tags.toLowerCase().includes(searchTerm) ||
-                        order.action.toLowerCase().includes(searchTerm) ||
-                        order.whatsapp.toLowerCase().includes(searchTerm)
-                    );
-                }
-
-                // Calculate mock stats
-                const mockStats: OrderStats = {
-                    total: mockOrders.length,
-                    notBooked: mockOrders.filter(o => o.status === "not-booked").length,
-                    processing: mockOrders.filter(o => o.status === "processing").length,
-                    booked: mockOrders.filter(o => o.status === "booked").length,
-                    cancelled: mockOrders.filter(o => o.status === "cancelled").length,
-                    shipmentCancelled: mockOrders.filter(o => o.status === "shipment-cancelled").length,
-                    error: mockOrders.filter(o => o.status === "error").length
-                };
-
-                setState(prev => ({
-                    ...prev,
-                    orders: filteredOrders,
-                    stats: mockStats,
-                    loading: false
-                }));
-            } else {
-                // Use real backend data
-                const [ordersResponse, statsResponse] = await Promise.all([
-                    sellerOrderService.getOrders(state.filters),
-                    sellerOrderService.getOrderStats(state.filters)
-                ]);
-
-                if (ordersResponse.status === 200 && statsResponse.status === 200) {
-                    setState(prev => ({
-                        ...prev,
-                        orders: ordersResponse.data,
-                        stats: statsResponse.data,
-                        loading: false
-                    }));
-                } else {
-                    throw new Error('Failed to fetch order data');
-                }
-            }
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching orders';
-            setState(prev => ({
-                ...prev,
-                error: errorMessage,
-                loading: false
-            }));
-            toast.error(errorMessage);
+            setIsLoading(true);
+            setError(null);
+            const response = await orderDataApi.getOrders(page, limit, filters);
+            setOrders(response.data.items);
+            setTotalOrders(response.data.total);
+            setCurrentPage(page);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to fetch orders');
+            throw err;
+        } finally {
+            setIsLoading(false);
         }
-    }, [state.filters]);
+    }, []);
 
+    /**
+     * Get order details
+     * @param {string} orderId - Order ID
+     * @returns {Promise<OrderData>} Order details
+     */
+    const getOrder = useCallback(async (orderId: string): Promise<OrderData> => {
+        try {
+            setIsLoading(true);
+            setError(null);
+            const response = await orderDataApi.getOrder(orderId);
+            return response.data;
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to fetch order details');
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    /**
+     * Get order status
+     * @param {string} orderId - Order ID
+     * @returns {Promise<OrderStatus>} Order status
+     */
+    const getOrderStatus = useCallback(async (orderId: string): Promise<OrderStatus> => {
+        try {
+            setIsLoading(true);
+            setError(null);
+            const response = await orderDataApi.getOrderStatus(orderId);
+            return response.data.status;
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to fetch order status');
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    /**
+     * Get order items
+     * @param {string} orderId - Order ID
+     * @returns {Promise<OrderItem[]>} Order items
+     */
+    const getOrderItems = useCallback(async (orderId: string): Promise<OrderItem[]> => {
+        try {
+            setIsLoading(true);
+            setError(null);
+            const response = await orderDataApi.getOrderItems(orderId);
+            return response.data;
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to fetch order items');
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    /**
+     * Get order statistics
+     * @returns {Promise<{ total: number; byStatus: Record<OrderStatus, number> }>} Order statistics
+     */
+    const getOrderStats = useCallback(async (): Promise<{ total: number; byStatus: Record<OrderStatus, number> }> => {
+        try {
+            setIsLoading(true);
+            setError(null);
+            const response = await orderDataApi.getOrderStats();
+            return response.data;
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to fetch order statistics');
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    // Initial fetch of orders
     useEffect(() => {
         fetchOrders();
     }, [fetchOrders]);
 
-    const updateFilters = useCallback((newFilters: Partial<OrderFilters>) => {
-        setState(prev => ({
-            ...prev,
-            filters: { ...prev.filters, ...newFilters }
-        }));
-    }, []);
-
-    const getActionFromStatus = (status: OrderData['status']): OrderData['action'] => {
-        switch (status) {
-            case 'not-booked':
-                return 'Ship';
-            case 'processing':
-                return 'Processing';
-            case 'booked':
-                return 'In Transit';
-            case 'cancelled':
-                return 'Cancelled';
-            case 'shipment-cancelled':
-                return 'Cancelled';
-            case 'error':
-                return 'Error';
-            default:
-                return 'Pending';
-        }
-    };
-
-    const updateOrderStatus = useCallback(async (orderId: string, status: OrderData['status']) => {
-        try {
-            if (USE_MOCK_DATA) {
-                // Update mock data
-                const updatedOrders = state.orders?.map(order => 
-                    order.orderId === orderId 
-                        ? { 
-                            ...order, 
-                            status,
-                            action: getActionFromStatus(status)
-                        } 
-                        : order
-                );
-                setState(prev => ({ ...prev, orders: updatedOrders || null }));
-                toast.success('Order status updated successfully');
-            } else {
-                const response = await sellerOrderService.updateOrderStatus(orderId, status);
-                if (response.status === 200) {
-                    await fetchOrders(); // Refresh data
-                    toast.success('Order status updated successfully');
-                } else {
-                    throw new Error('Failed to update order status');
-                }
-            }
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to update order status';
-            toast.error(errorMessage);
-        }
-    }, [fetchOrders, state.orders]);
-
-    const bulkUpdateOrderStatus = useCallback(async (orderIds: string[], status: OrderData['status']) => {
-        try {
-            if (USE_MOCK_DATA) {
-                // Update mock data
-                const updatedOrders = state.orders?.map(order => 
-                    orderIds.includes(order.orderId) 
-                        ? { 
-                            ...order, 
-                            status,
-                            action: getActionFromStatus(status)
-                        } 
-                        : order
-                );
-                setState(prev => ({ ...prev, orders: updatedOrders || null }));
-                toast.success('Orders status updated successfully');
-            } else {
-                const response = await sellerOrderService.bulkUpdateOrderStatus(orderIds, status);
-                if (response.status === 200) {
-                    await fetchOrders(); // Refresh data
-                    toast.success('Orders status updated successfully');
-                } else {
-                    throw new Error('Failed to update orders status');
-                }
-            }
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to update orders status';
-            toast.error(errorMessage);
-        }
-    }, [fetchOrders, state.orders]);
-
-    const getFilteredOrders = useCallback((status: OrderData['status']) => {
-        if (!state.orders) return [];
-        return state.orders.filter(order => order.status === status);
-    }, [state.orders]);
-
-    // Add selection handlers
-    const toggleOrderSelection = useCallback((orderId: string) => {
-        setState(prev => ({
-            ...prev,
-            selectedOrders: prev.selectedOrders.includes(orderId)
-                ? prev.selectedOrders.filter(id => id !== orderId)
-                : [...prev.selectedOrders, orderId]
-        }));
-    }, []);
-
-    const clearSelection = useCallback(() => {
-        setState(prev => ({
-            ...prev,
-            selectedOrders: []
-        }));
-    }, []);
-
     return {
-        ...state,
-        updateFilters,
-        updateOrderStatus,
-        bulkUpdateOrderStatus,
-        getFilteredOrders,
-        refresh: fetchOrders,
-        toggleOrderSelection,
-        clearSelection
+        orders,
+        totalOrders,
+        currentPage,
+        isLoading,
+        error,
+        fetchOrders,
+        getOrder,
+        getOrderStatus,
+        getOrderItems,
+        getOrderStats,
     };
 }; 

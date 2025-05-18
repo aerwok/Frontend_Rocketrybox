@@ -1,55 +1,53 @@
-import { useLocation } from "react-router-dom";
+import { useEscalationHeader } from "@/hooks/useEscalationHeader";
+import { Skeleton } from "@/components/ui/skeleton";
 
-interface RouteHeader {
-    title: string;
-    description: string;
-}
-
-const ROUTE_HEADERS: Record<string, RouteHeader> = {
-    "search": {
-        title: "Search By Escalation",
-        description: "Search for escalation tickets"
-    },
-    "statistics": {
-        title: "Escalation Statistics",
-        description: "View escalation metrics and analytics"
-    },
-    "pickups": {
-        title: "Escalation - Pickups",
-        description: "Manage pickup related escalations"
-    },
-    "shipments": {
-        title: "Escalation - Shipments",
-        description: "Manage shipment related escalations"
-    },
-    "billing": {
-        title: "Escalation - Billing & Remittance",
-        description: "Manage billing and remittance escalations"
-    },
-    "weight-issues": {
-        title: "Escalation - Weight Issues",
-        description: "Manage weight related escalations"
-    },
-    "tech-issues": {
-        title: "Escalation - Tech Issues",
-        description: "Manage Call Back Request"
-    }
-};
-
+/**
+ * EscalationHeader Component
+ * 
+ * A dynamic header component that displays title and description based on the current route.
+ * Features:
+ * - Fetches header information from API
+ * - Handles loading and error states
+ * - Updates automatically on route changes
+ * - Provides a clean and consistent UI
+ * 
+ * @returns {JSX.Element} The escalation header component
+ */
 const EscalationHeader = () => {
+    const { headerInfo, loading, error } = useEscalationHeader();
 
-    const { pathname } = useLocation();
+    // Render loading state
+    if (loading) {
+        return (
+            <div className="flex flex-col gap-2">
+                <Skeleton className="h-8 w-64" />
+                <Skeleton className="h-4 w-96" />
+            </div>
+        );
+    }
 
-    const currentRoute = pathname.split("/").pop() || "search";
-    const headerInfo = ROUTE_HEADERS[currentRoute];
+    // Render error state
+    if (error) {
+        return (
+            <div className="flex flex-col gap-2">
+                <h1 className="text-xl lg:text-2xl font-semibold text-red-500">
+                    Error Loading Header
+                </h1>
+                <p className="text-muted-foreground">
+                    {error}
+                </p>
+            </div>
+        );
+    }
 
+    // Render header information
     return (
         <div className="flex flex-col gap-2">
             <h1 className="text-xl lg:text-2xl font-semibold">
-                {headerInfo?.title}
+                {headerInfo?.title || 'Escalation Management'}
             </h1>
             <p className="text-muted-foreground">
-                {headerInfo?.description}
+                {headerInfo?.description || 'Manage and track escalation tickets'}
             </p>
         </div>
     );

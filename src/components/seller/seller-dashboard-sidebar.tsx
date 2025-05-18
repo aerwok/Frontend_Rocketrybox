@@ -5,15 +5,17 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useSidebarStore } from "@/store/use-sidebar-store";
 import { AnimatePresence, motion } from "framer-motion";
 import { HeadsetIcon, PackageIcon, SettingsIcon, UserIcon, WalletIcon } from "lucide-react";
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import WalletModal from "./wallet-modal";
-import { useWallet } from "@/hooks/useWallet";
+import { useSidebar } from "@/hooks/useSidebar";
 import { Loader2 } from "lucide-react";
 
+/**
+ * Sidebar navigation links configuration
+ * Each link defines its icon, route, label, and whether it opens a modal
+ */
 const SIDEBAR_LINKS = [
     {
         icon: UserIcon,
@@ -47,24 +49,41 @@ const SIDEBAR_LINKS = [
     },
 ];
 
+/**
+ * SellerDashboardSidebar Component
+ * 
+ * This component renders the sidebar navigation for the seller dashboard, including:
+ * - Navigation links with icons
+ * - Wallet balance display
+ * - Collapsible sidebar functionality
+ * - Tooltips for collapsed state
+ * 
+ * @returns {JSX.Element} The rendered sidebar
+ */
 const SellerDashboardSidebar = () => {
-    const { pathname } = useLocation();
-    const isExpanded = useSidebarStore((state) => state.isExpanded);
-    const [isWalletOpen, setIsWalletOpen] = useState<boolean>(false);
-    const { walletBalance, isLoadingBalance } = useWallet();
+    const {
+        isExpanded,
+        pathname,
+        walletBalance,
+        isLoadingBalance,
+        error,
+        handleLinkClick,
+        setIsWalletOpen,
+        isWalletOpen,
+    } = useSidebar();
 
-    const handleLinkClick = (link: typeof SIDEBAR_LINKS[0], e: React.MouseEvent) => {
-        if (link.isModal) {
-            e.preventDefault();
-            setIsWalletOpen(true);
-        }
-    };
-
+    /**
+     * Render wallet balance with loading state
+     * @returns {JSX.Element} Wallet balance display
+     */
     const renderWalletAmount = () => {
         if (isLoadingBalance) {
             return <Loader2 className="h-3 w-3 animate-spin" />;
         }
-        return `₹${walletBalance?.walletBalance || 0}`;
+        if (error) {
+            return <span className="text-destructive">Error</span>;
+        }
+        return `₹${walletBalance || 0}`;
     };
 
     return (

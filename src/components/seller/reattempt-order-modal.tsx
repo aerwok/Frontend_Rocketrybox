@@ -1,9 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { ReattemptOrderInput, reattemptOrderSchema } from "@/lib/validations/order-actions";
+import { X, Loader2 } from "lucide-react";
 import {
     Form,
     FormControl,
@@ -15,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useReattemptOrder } from "@/hooks/useReattemptOrder";
 
 interface ReattemptOrderModalProps {
     isOpen: boolean;
@@ -32,34 +30,35 @@ interface ReattemptOrderModalProps {
     } | null;
 }
 
-
+/**
+ * Reattempt Order Modal Component
+ * 
+ * This component handles:
+ * - Reattempt order form
+ * - Address validation
+ * - Form submission
+ * - Loading and error states
+ * 
+ * @param {ReattemptOrderModalProps} props - Component props
+ * @returns {JSX.Element} Rendered component
+ */
 const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: ReattemptOrderModalProps) => {
-    const form = useForm<ReattemptOrderInput>({
-        resolver: zodResolver(reattemptOrderSchema),
-        defaultValues: {
-            orderId,
-            fullName: currentAddress?.fullName || "",
-            contactNumber: currentAddress?.contactNumber || "",
-            addressLine1: currentAddress?.addressLine1 || "",
-            addressLine2: currentAddress?.addressLine2 || "",
-            landmark: currentAddress?.landmark || "",
-            pincode: currentAddress?.pincode || "",
-            city: currentAddress?.city || "",
-            state: currentAddress?.state || "",
-            reattemptReason: "",
-        },
-    });
-
-    const onSubmit = async (data: ReattemptOrderInput) => {
-        try {
-            console.log("Reattempt order data:", data);
+    const {
+        form,
+        isSubmitting,
+        error,
+        handleSubmit,
+    } = useReattemptOrder({
+        orderId,
+        currentAddress,
+        onSuccess: () => {
             toast.success("Reattempt request submitted successfully");
             onClose();
-        } catch (error) {
-            console.error("Error submitting reattempt request:", error);
-            toast.error("Failed to submit reattempt request");
-        }
-    };
+        },
+        onError: (error) => {
+            toast.error(error.message || "Failed to submit reattempt request");
+        },
+    });
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -68,13 +67,18 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                     <DialogTitle className="text-lg">
                         Reattempt Delivery for Order #{orderId}
                     </DialogTitle>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                    >
                         <X className="h-4 w-4" />
                     </Button>
                 </DialogHeader>
 
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                         <div className="space-y-4">
                             <h3 className="text-sm font-medium">
                                 Contact Information
@@ -89,7 +93,11 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                                                 Full Name *
                                             </FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Full Name" {...field} />
+                                                <Input 
+                                                    placeholder="Full Name" 
+                                                    {...field} 
+                                                    disabled={isSubmitting}
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -105,7 +113,11 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                                                 Contact Number *
                                             </FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Contact Number" {...field} />
+                                                <Input 
+                                                    placeholder="Contact Number" 
+                                                    {...field} 
+                                                    disabled={isSubmitting}
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -128,7 +140,11 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                                                 Address Line 1 *
                                             </FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Address Line 1" {...field} />
+                                                <Input 
+                                                    placeholder="Address Line 1" 
+                                                    {...field} 
+                                                    disabled={isSubmitting}
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -144,7 +160,11 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                                                 Address Line 2
                                             </FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Address Line 2" {...field} />
+                                                <Input 
+                                                    placeholder="Address Line 2" 
+                                                    {...field} 
+                                                    disabled={isSubmitting}
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -160,7 +180,11 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                                                 Landmark
                                             </FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Landmark" {...field} />
+                                                <Input 
+                                                    placeholder="Landmark" 
+                                                    {...field} 
+                                                    disabled={isSubmitting}
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -177,7 +201,11 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                                                     Pincode *
                                                 </FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="Pincode" {...field} />
+                                                    <Input 
+                                                        placeholder="Pincode" 
+                                                        {...field} 
+                                                        disabled={isSubmitting}
+                                                    />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -193,7 +221,11 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                                                     City *
                                                 </FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="City" {...field} />
+                                                    <Input 
+                                                        placeholder="City" 
+                                                        {...field} 
+                                                        disabled={isSubmitting}
+                                                    />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -209,7 +241,11 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                                                     State *
                                                 </FormLabel>
                                                 <FormControl>
-                                                    <Input placeholder="State" {...field} />
+                                                    <Input 
+                                                        placeholder="State" 
+                                                        {...field} 
+                                                        disabled={isSubmitting}
+                                                    />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -232,6 +268,7 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                                             placeholder="Provide reason for reattempt"
                                             className="resize-none"
                                             {...field}
+                                            disabled={isSubmitting}
                                         />
                                     </FormControl>
                                     <FormMessage />
@@ -239,11 +276,18 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                             )}
                         />
 
+                        {error && (
+                            <p className="text-sm text-red-500">
+                                {error}
+                            </p>
+                        )}
+
                         <div className="flex justify-end gap-3 pt-4">
                             <Button
                                 type="button"
                                 variant="outline"
                                 onClick={onClose}
+                                disabled={isSubmitting}
                             >
                                 Cancel
                             </Button>
@@ -251,8 +295,16 @@ const ReattemptOrderModal = ({ isOpen, onClose, orderId, currentAddress }: Reatt
                                 type="submit"
                                 variant="default"
                                 className="bg-purple-600 hover:bg-purple-700 text-white"
+                                disabled={isSubmitting}
                             >
-                                Submit Reattempt
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Submitting...
+                                    </>
+                                ) : (
+                                    'Submit Reattempt'
+                                )}
                             </Button>
                         </div>
                     </form>

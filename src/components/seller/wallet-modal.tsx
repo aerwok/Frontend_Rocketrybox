@@ -24,6 +24,17 @@ type TabType = "balance" | "recharge" | "history";
 
 const QUICK_RECHARGE_OPTIONS = [500, 1000, 5000, 10000];
 
+/**
+ * WalletModal Component
+ * 
+ * This component provides a modal interface for:
+ * - Viewing wallet balance
+ * - Recharging wallet
+ * - Viewing transaction history
+ * 
+ * @param {WalletModalProps} props - Component props
+ * @returns {JSX.Element} The rendered modal
+ */
 const WalletModal = ({ isOpen, onClose }: WalletModalProps) => {
     const [activeTab, setActiveTab] = useState<TabType>("balance");
     const [rechargeAmount, setRechargeAmount] = useState<string>("5000");
@@ -49,6 +60,9 @@ const WalletModal = ({ isOpen, onClose }: WalletModalProps) => {
         }
     }, [isOpen]);
 
+    /**
+     * Handle wallet recharge
+     */
     const handleRecharge = async () => {
         try {
             const amount = Number(rechargeAmount);
@@ -73,6 +87,9 @@ const WalletModal = ({ isOpen, onClose }: WalletModalProps) => {
         }
     };
 
+    /**
+     * Handle amount input change
+     */
     const handleAmountChange = (value: string) => {
         // Only allow numbers and limit length
         if (/^\d*$/.test(value) && value.length <= 6) {
@@ -80,10 +97,16 @@ const WalletModal = ({ isOpen, onClose }: WalletModalProps) => {
         }
     };
 
+    /**
+     * Get available balance for selected payment method
+     */
     const getAvailableBalance = () => {
         return paymentMethod === "remittance" ? walletBalance?.remittanceBalance || 0 : 0;
     };
 
+    /**
+     * Render wallet balance
+     */
     const renderBalance = () => {
         if (isLoadingBalance) {
             return <Loader2 className="h-4 w-4 animate-spin" />;
@@ -91,6 +114,9 @@ const WalletModal = ({ isOpen, onClose }: WalletModalProps) => {
         return formatCurrency(walletBalance?.walletBalance || 0);
     };
 
+    /**
+     * Render transaction history
+     */
     const renderTransactions = () => {
         if (isLoadingTransactions && transactions.length === 0) {
             return (

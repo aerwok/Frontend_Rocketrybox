@@ -1,198 +1,162 @@
-import { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDownIcon, Menu, X, LogIn, UserPlus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import AuthModal from "@/components/auth/auth-modal";
 import { motion, AnimatePresence } from 'framer-motion';
-import { useClickOutside } from '@/hooks/use-click-outside';
+import { useNavbar } from '@/hooks/useNavbar';
+import { Loader2, Bell, X } from 'lucide-react';
 
-const navLinks = [
-    { to: "/", label: "Home" },
-    { to: "/services", label: "Services" },
-    { to: "/features", label: "Features" },
-    { to: "/pricing", label: "Pricing" },
-    { to: "/track", label: "Track" },
-    { to: "/contact", label: "Contact" }
-];
-
-const Navbar = () => {
-    const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+/**
+ * Navbar Component
+ * 
+ * This component displays the main navigation bar with:
+ * - Main navigation items
+ * - User navigation items
+ * - Notifications
+ * - Loading and error states
+ * 
+ * @returns {JSX.Element} The rendered navbar
+ */
+export const Navbar: React.FC = () => {
     const location = useLocation();
+    const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+    const {
+        mainNav,
+        userNav,
+        notifications,
+        isLoading,
+        error,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
+    } = useNavbar();
 
-    const handleClickOutside = useCallback((event: MouseEvent | TouchEvent) => {
-        const target = event.target as HTMLElement;
-        if (!target.closest('button')) {
-            setIsMenuOpen(false);
-        }
-    }, []);
+    // Show loading state
+    if (isLoading) {
+        return (
+            <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex justify-between h-16 items-center">
+                        <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+                    </div>
+                </div>
+            </nav>
+        );
+    }
 
-    const menuRef = useClickOutside<HTMLDivElement>(handleClickOutside);
-
-    const toggleMenu = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setIsMenuOpen(!isMenuOpen);
-    };
-
-    const handleNavigation = () => {
-        setIsMenuOpen(false);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+    // Show error state
+    if (error) {
+        return (
+            <nav className="fixed top-0 left-0 right-0 z-50 bg-red-50 border-b border-red-200">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex justify-between h-16 items-center">
+                        <p className="text-red-600">{error}</p>
+                    </div>
+                </div>
+            </nav>
+        );
+    }
 
     return (
-        <motion.header
-            initial={{ y: -100 }}
-            animate={{ y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="fixed top-0 left-0 right-0 z-40 bg-[#EEF7FF]"
-        >
-            <div className={cn(
-                "container mx-auto px-4 relative",
-                isMenuOpen && "border-b border-border shadow-lg md:shadow-none lg:shadow-lg shadow-black/10"
-            )}>
-                <div className="flex items-center justify-between py-4">
-                    {/* Logo */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.3, delay: 0.1 }}
-                    >
-                        <Link to="/" onClick={() => handleNavigation()}>
-                            <img
-                                src="/icons/logo.svg"
-                                alt="Rocketry Box"
-                                className="h-10"
-                            />
-                        </Link>
-                    </motion.div>
-
-                    {/* Desktop Nav */}
-                    <div className="hidden lg:flex items-center space-x-1 absolute left-1/2 -translate-x-1/2">
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3, delay: 0.2 }}
-                            className="flex items-center justify-center p-1 rounded-lg bg-main text-white gap-x-1"
-                        >
-                            {navLinks.map((link) => (
-                                <Link
-                                    key={link.to}
-                                    to={link.to}
-                                    onClick={() => handleNavigation()}
-                                    className={cn(
-                                        "px-4 py-1 rounded-lg transition-colors",
-                                        location.pathname === link.to
-                                            ? "bg-white/20"
-                                            : "hover:bg-white/10"
-                                    )}
-                                >
-                                    {link.label}
-                                </Link>
-                            ))}
-                        </motion.div>
+        <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between h-16">
+                    {/* Main Navigation */}
+                    <div className="flex">
+                        {mainNav.map((item) => (
+                            <Link
+                                key={item.id}
+                                to={item.href}
+                                className={`inline-flex items-center px-4 py-2 text-sm font-medium ${
+                                    location.pathname === item.href
+                                        ? 'text-blue-600 border-b-2 border-blue-600'
+                                        : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                            >
+                                {item.label}
+                            </Link>
+                        ))}
                     </div>
 
-                    {/* Auth Buttons */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.3, delay: 0.3 }}
-                        className="hidden lg:flex items-center space-x-3"
-                    >
-                        <AuthModal type="login">
-                            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                <Button variant="primary" className="gap-2">
-                                    Login
-                                    <ChevronDownIcon className="size-4" />
-                                </Button>
-                            </motion.div>
-                        </AuthModal>
-                        <AuthModal type="signup">
-                            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                <Button variant="primary" className="gap-2">
-                                    Sign Up
-                                    <ChevronDownIcon className="size-4" />
-                                </Button>
-                            </motion.div>
-                        </AuthModal>
-                    </motion.div>
+                    {/* User Navigation */}
+                    <div className="flex items-center space-x-4">
+                        {/* Notifications */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                                className="p-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                            >
+                                <Bell className="h-6 w-6" />
+                                {notifications.some(n => !n.read) && (
+                                    <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500" />
+                                )}
+                            </button>
 
-                    {/* Mobile Menu Button */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.3 }}
-                        className="lg:hidden"
-                    >
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={toggleMenu}
-                        >
-                            {isMenuOpen ? <X /> : <Menu />}
-                        </Button>
-                    </motion.div>
-                </div>
-
-                {/* Mobile Nav */}
-                <AnimatePresence mode="wait">
-                    {isMenuOpen && (
-                        <motion.div
-                            ref={menuRef}
-                            initial={{ opacity: 0, x: 100 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 100 }}
-                            transition={{ duration: 0.2 }}
-                            className="lg:hidden absolute top-full left-1/2 -translate-x-1/2 bg-[#EEF7FF] z-50 border-b border-border shadow-lg w-[110%] !transform px-8"
-                        >
-                            <motion.div className="px-2 pt-2 pb-3 flex flex-col w-full space-y-1">
-                                {navLinks.map((link, index) => (
+                            <AnimatePresence>
+                                {isNotificationsOpen && (
                                     <motion.div
-                                        key={link.to}
-                                        initial={{ opacity: 0, x: 20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: index * 0.05, duration: 0.2 }}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: 10 }}
+                                        className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg ring-1 ring-black ring-opacity-5"
                                     >
-                                        <Link
-                                            to={link.to}
-                                            className={cn(
-                                                "px-4 py-2 rounded-lg block transition-colors",
-                                                location.pathname === link.to
-                                                    ? "bg-sky-500/20 text-main"
-                                                    : "hover:bg-sky-500/10"
-                                            )}
-                                            onClick={() => handleNavigation()}
-                                        >
-                                            {link.label}
-                                        </Link>
+                                        <div className="p-4">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="text-lg font-medium">Notifications</h3>
+                                                {notifications.some(n => !n.read) && (
+                                                    <button
+                                                        onClick={() => markAllNotificationsAsRead()}
+                                                        className="text-sm text-blue-600 hover:text-blue-800"
+                                                    >
+                                                        Mark all as read
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="space-y-4">
+                                                {notifications.map((notification) => (
+                                                    <div
+                                                        key={notification.id}
+                                                        className={`p-3 rounded-lg ${
+                                                            notification.read ? 'bg-gray-50' : 'bg-blue-50'
+                                                        }`}
+                                                    >
+                                                        <div className="flex justify-between">
+                                                            <h4 className="font-medium">{notification.title}</h4>
+                                                            {!notification.read && (
+                                                                <button
+                                                                    onClick={() => markNotificationAsRead(notification.id)}
+                                                                    className="text-blue-600 hover:text-blue-800"
+                                                                >
+                                                                    <X className="h-4 w-4" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-sm text-gray-600 mt-1">
+                                                            {notification.message}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 mt-2">
+                                                            {new Date(notification.createdAt).toLocaleString()}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </motion.div>
-                                ))}
+                                )}
+                            </AnimatePresence>
+                        </div>
 
-                                <motion.div
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.3, duration: 0.2 }}
-                                    className="pt-4 flex flex-col space-y-3"
-                                >
-                                    <AuthModal type="login">
-                                        <Button variant="primary" className="w-full gap-2">
-                                            <LogIn className="size-4" />
-                                            Login
-                                        </Button>
-                                    </AuthModal>
-                                    <AuthModal type="signup">
-                                        <Button variant="primary" className="w-full gap-2">
-                                            <UserPlus className="size-4" />
-                                            Sign Up
-                                        </Button>
-                                    </AuthModal>
-                                </motion.div>
-                            </motion.div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                        {/* User Menu */}
+                        {userNav.map((item) => (
+                            <Link
+                                key={item.id}
+                                to={item.href}
+                                className="text-gray-500 hover:text-gray-700"
+                            >
+                                {item.label}
+                            </Link>
+                        ))}
+                    </div>
+                </div>
             </div>
-        </motion.header>
+        </nav>
     );
 };
 

@@ -1,86 +1,198 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Invoices from "./components/invoices";
-import LedgerHistory from "./components/ledger-history";
-import RateCard from "./components/rate-card";
-import WalletHistory from "./components/wallet-history";
-import { useSearchParams } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect } from 'react';
+import { useBilling, useBillingHistory } from '../../../../hooks/useBilling';
+import { Button } from '../../../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../../components/ui/card';
+import { Alert, AlertDescription } from '../../../../components/ui/alert';
+import { Loader2, Download, CreditCard, Calendar, DollarSign } from 'lucide-react';
+import { format } from 'date-fns';
 
-const SellerBillingPage = () => {
-    
-    const [searchParams, setSearchParams] = useSearchParams();
+/**
+ * Billing Summary Component
+ * Displays current plan, subscription details, and payment methods
+ */
+const BillingSummary = () => {
+    const { summary, isLoading, error, cancelSubscription } = useBilling();
 
-    const currentTab = searchParams.get("tab") || "rate-card";
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+        );
+    }
 
-    const handleTabChange = (value: string) => {
-        setSearchParams({ tab: value });
-    };
+    if (error) {
+        return (
+            <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        );
+    }
 
-    useEffect(() => {
-        if (searchParams.get("tab")) {
-            handleTabChange(searchParams.get("tab")!);
-        }
-    }, []);
+    if (!summary) {
+        return (
+            <Alert>
+                <AlertDescription>No billing information available</AlertDescription>
+            </Alert>
+        );
+    }
 
     return (
-        <div className="w-full space-y-8">
-            <h1 className="text-xl lg:text-2xl font-semibold">
-                Billing
-            </h1>
-
-            <Tabs defaultValue={currentTab} className="w-full" onValueChange={handleTabChange}>
-                <div className="w-full z-10">
-                    <div className="w-full overflow-auto scrollbar-hide max-w-[calc(100vw-64px-2rem)] mx-auto">
-                        <TabsList className="w-max min-w-full p-0 h-12 z-0 bg-white rounded-none relative justify-start">
-                            <div className="absolute bottom-0 w-full h-px -z-10 bg-violet-200"></div>
-                            <TabsTrigger
-                                value="rate-card"
-                                className="h-full data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-black px-8"
-                            >
-                                Rate Card
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="wallet-history"
-                                className="h-full data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-black px-8"
-                            >
-                                Wallet History
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="invoices"
-                                className="h-full data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-black px-8"
-                            >
-                                Invoices
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="ledger-history"
-                                className="h-full data-[state=active]:bg-white rounded-none border-b-2 border-transparent data-[state=active]:border-black px-8"
-                            >
-                                Ledger History
-                            </TabsTrigger>
-                        </TabsList>
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Current Plan</CardTitle>
+                    <CardDescription>{summary.currentPlan.name}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid gap-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500">Next Billing Date</span>
+                            <span className="font-medium">
+                                {format(new Date(summary.nextBillingDate), 'PPP')}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500">Total Amount</span>
+                            <span className="font-medium">${summary.totalAmount}</span>
+                        </div>
+                        <Button
+                            variant="destructive"
+                            onClick={cancelSubscription}
+                            className="w-full"
+                        >
+                            Cancel Subscription
+                        </Button>
                     </div>
-                </div>
+                </CardContent>
+            </Card>
 
-                <div className="mt-8">
-                    <TabsContent value="rate-card" className="w-full">
-                        <RateCard />
-                    </TabsContent>
-
-                    <TabsContent value="wallet-history">
-                        <WalletHistory />
-                    </TabsContent>
-
-                    <TabsContent value="invoices">
-                        <Invoices />
-                    </TabsContent>
-
-                    <TabsContent value="ledger-history">
-                        <LedgerHistory />
-                    </TabsContent>
-                </div>
-            </Tabs>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Payment Methods</CardTitle>
+                    <CardDescription>Manage your payment methods</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        {summary.paymentMethods.map((method) => (
+                            <div
+                                key={method.id}
+                                className="flex items-center justify-between p-4 border rounded-lg"
+                            >
+                                <div className="flex items-center space-x-4">
+                                    <CreditCard className="h-5 w-5 text-gray-400" />
+                                    <div>
+                                        <p className="font-medium">
+                                            {method.type === 'credit_card'
+                                                ? `${method.details.brand} ending in ${method.details.last4}`
+                                                : method.type}
+                                        </p>
+                                        {method.isDefault && (
+                                            <span className="text-sm text-green-600">Default</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        <Button variant="outline" className="w-full">
+                            Add Payment Method
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 };
 
-export default SellerBillingPage; 
+/**
+ * Billing History Component
+ * Displays invoice history with download functionality
+ */
+const BillingHistory = () => {
+    const { history, isLoading, error, fetchHistory, downloadInvoice } = useBillingHistory();
+
+    useEffect(() => {
+        fetchHistory();
+    }, [fetchHistory]);
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        );
+    }
+
+    if (!history || history.invoices.length === 0) {
+        return (
+            <Alert>
+                <AlertDescription>No billing history available</AlertDescription>
+            </Alert>
+        );
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Billing History</CardTitle>
+                <CardDescription>View and download your invoices</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-4">
+                    {history.invoices.map((invoice) => (
+                        <div
+                            key={invoice.id}
+                            className="flex items-center justify-between p-4 border rounded-lg"
+                        >
+                            <div className="space-y-1">
+                                <p className="font-medium">Invoice #{invoice.id}</p>
+                                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                    <div className="flex items-center">
+                                        <Calendar className="h-4 w-4 mr-1" />
+                                        {format(new Date(invoice.dueDate), 'PPP')}
+                                    </div>
+                                    <div className="flex items-center">
+                                        <DollarSign className="h-4 w-4 mr-1" />
+                                        ${invoice.amount}
+                                    </div>
+                                </div>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => downloadInvoice(invoice.id)}
+                            >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+/**
+ * Billing Page Component
+ * Main component for the billing dashboard
+ */
+export default function BillingPage() {
+    return (
+        <div className="container mx-auto py-8">
+            <h1 className="text-3xl font-bold mb-8">Billing & Subscription</h1>
+            <div className="grid gap-8 md:grid-cols-2">
+                <BillingSummary />
+                <BillingHistory />
+            </div>
+        </div>
+    );
+} 

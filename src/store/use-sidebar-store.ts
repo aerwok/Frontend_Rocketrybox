@@ -1,13 +1,15 @@
-import { create } from 'zustand';
+import { create, StateCreator } from 'zustand';
 
-interface SidebarStore {
-    isExpanded: boolean;
+interface SidebarState {
+    isOpen: boolean;
     toggleSidebar: () => void;
-    setSidebarState: (state: boolean) => void;
 }
 
-export const useSidebarStore = create<SidebarStore>((set) => ({
-    isExpanded: false,
-    toggleSidebar: () => set((state) => ({ isExpanded: !state.isExpanded })),
-    setSidebarState: (state: boolean) => set({ isExpanded: state }),
+/**
+ * Zustand store for managing sidebar state
+ * @returns {SidebarState} Object containing sidebar state and actions
+ */
+export const useSidebarStore = create<SidebarState>((set: StateCreator<SidebarState>['setState']) => ({
+    isOpen: true,
+    toggleSidebar: () => set((state: SidebarState) => ({ isOpen: !state.isOpen })),
 })); 

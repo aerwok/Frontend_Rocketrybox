@@ -1,172 +1,133 @@
-import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { Link } from "react-router-dom";
-import { adminLoginSchema, type AdminLoginInput } from "@/lib/validations/admin";
-import { Checkbox } from "@/components/ui/checkbox";
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
 
-const AdminLoginPage = () => {
+/**
+ * Login form validation schema
+ */
+const loginSchema = z.object({
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+});
 
-    const [showPassword, setShowPassword] = useState<boolean>(false);
+type LoginFormData = z.infer<typeof loginSchema>;
 
-    const form = useForm<AdminLoginInput>({
-        resolver: zodResolver(adminLoginSchema),
-        defaultValues: {
-            email: "",
-            password: "",
-            rememberMe: false,
-        },
+/**
+ * Login Page Component
+ * 
+ * Handles user authentication with:
+ * - Form validation
+ * - Error handling
+ * - Loading states
+ * - Redirect after successful login
+ */
+const LoginPage: React.FC = () => {
+    const { login, isLoading, error } = useAuth();
+    const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
+        resolver: zodResolver(loginSchema),
     });
 
-    const onSubmit = (data: AdminLoginInput) => {
-        console.log(data);
-        // Handle login logic here
+    const onSubmit = async (data: LoginFormData) => {
+        try {
+            await login(data);
+        } catch (err) {
+            // Error is handled by useAuth hook
+            console.error('Login failed:', err);
+        }
     };
 
     return (
-        <div className="pt-16 bg-white">
-            <div className="container mx-auto p-4 h-full">
-                <div className="grid lg:grid-cols-2 gap-12 place-items-center w-full h-full">
-                    {/* Left Side - Content & Image */}
-                    <div className="space-y-6 order-2 lg:order-1 flex flex-col justify-center w-full h-full">
-                        <div className="space-y-4">
-                            <h1 className="text-3xl lg:text-4xl font-bold">
-                                Welcome Back, <span className="text-[#B91C1C]">Captain!</span> 🚢
-                            </h1>
-                            <p className="text-lg text-gray-600 leading-relaxed">
-                                Manage consignments, track shipments, and streamline logistics—all from one
-                                powerful dashboard.
-                            </p>
-                            <p className="text-lg font-semibold">
-                                Login to take control!
-                            </p>
-                        </div>
-                        <div className="relative h-[400px] w-full">
-                            <img
-                                src="/images/auth.png"
-                                alt="Login"
-                                className="w-full h-full object-contain"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Right Side - Form */}
-                    <div className="w-full max-w-md space-y-6 order-1 lg:order-2">
-                        <div className="text-center space-y-2">
-                            <h2 className="text-2xl font-bold tracking-tight">
-                                Admin User Login
-                            </h2>
-                        </div>
-
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                <FormField
-                                    control={form.control}
-                                    name="email"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>
-                                                Email address/ Mobile Number
-                                            </FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    placeholder="Enter email address/ mobile number"
-                                                    className="bg-[#D9D9D9]"
-                                                    {...field}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="password"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>
-                                                Password
-                                            </FormLabel>
-                                            <FormControl>
-                                                <div className="relative">
-                                                    <Input
-                                                        type={showPassword ? "text" : "password"}
-                                                        placeholder="Enter password"
-                                                        className="bg-[#D9D9D9]"
-                                                        {...field}
-                                                    />
-                                                    <Button
-                                                        size="icon"
-                                                        type="button"
-                                                        variant="ghost"
-                                                        onClick={() => setShowPassword(!showPassword)}
-                                                        className="absolute right-0 top-1/2 -translate-y-1/2"
-                                                    >
-                                                        {showPassword ? (
-                                                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                                                        ) : (
-                                                            <Eye className="h-4 w-4 text-muted-foreground" />
-                                                        )}
-                                                    </Button>
-                                                </div>
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <div className="flex items-center justify-between">
-                                    <FormField
-                                        control={form.control}
-                                        name="rememberMe"
-                                        render={({ field }) => (
-                                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                                <FormControl>
-                                                    <Checkbox
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                    />
-                                                </FormControl>
-                                                <div className="space-y-1 leading-none">
-                                                    <FormLabel>
-                                                        Remember me
-                                                    </FormLabel>
-                                                </div>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <Link
-                                        to="#"
-                                        className="text-sm text-primary hover:underline"
-                                    >
-                                        Forgot password?
-                                    </Link>
-                                </div>
-
-                                <Button type="submit" variant="primary" className="w-full">
-                                    Log In
-                                </Button>
-
-                                <div className="text-center text-sm">
-                                    <Link
-                                        to="/admin/forgot-password"
-                                        className="font-medium text-primary hover:underline"
-                                    >
-                                        Forgot your password?
-                                    </Link>
-                                </div>
-                            </form>
-                        </Form>
-                    </div>
+        <div className="min-h-screen flex items-center justify-center bg-background">
+            <div className="w-full max-w-md space-y-8 p-8">
+                <div className="text-center">
+                    <h1 className="text-2xl font-bold">Welcome back</h1>
+                    <p className="text-muted-foreground mt-2">
+                        Sign in to your account
+                    </p>
                 </div>
+
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                    <div className="space-y-4">
+                        <div>
+                            <Label htmlFor="email">Email</Label>
+                            <Input
+                                id="email"
+                                type="email"
+                                {...register('email')}
+                                disabled={isLoading}
+                            />
+                            {errors.email && (
+                                <p className="text-sm text-destructive mt-1">
+                                    {errors.email.message}
+                                </p>
+                            )}
+                        </div>
+
+                        <div>
+                            <Label htmlFor="password">Password</Label>
+                            <Input
+                                id="password"
+                                type="password"
+                                {...register('password')}
+                                disabled={isLoading}
+                            />
+                            {errors.password && (
+                                <p className="text-sm text-destructive mt-1">
+                                    {errors.password.message}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {error && (
+                        <p className="text-sm text-destructive text-center">
+                            {error}
+                        </p>
+                    )}
+
+                    <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={isLoading}
+                    >
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Signing in...
+                            </>
+                        ) : (
+                            'Sign in'
+                        )}
+                    </Button>
+
+                    <div className="text-center space-y-2">
+                        <Link
+                            to="/admin/auth/forgot-password"
+                            className="text-sm text-primary hover:underline"
+                        >
+                            Forgot your password?
+                        </Link>
+                        <p className="text-sm text-muted-foreground">
+                            Don't have an account?{' '}
+                            <Link
+                                to="/admin/auth/register"
+                                className="text-primary hover:underline"
+                            >
+                                Sign up
+                            </Link>
+                        </p>
+                    </div>
+                </form>
             </div>
         </div>
     );
 };
 
-export default AdminLoginPage; 
+export default LoginPage; 

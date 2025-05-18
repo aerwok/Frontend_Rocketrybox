@@ -5,18 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
-import { z } from "zod";
-
-const addressSchema = z.object({
-    address1: z.string().min(1, "Address line 1 is required"),
-    address2: z.string().optional(),
-    city: z.string().min(1, "City is required"),
-    state: z.string().min(1, "State is required"),
-    pincode: z.string().min(6, "Pincode must be 6 digits").max(6, "Pincode must be 6 digits"),
-    phone: z.string().min(10, "Phone number must be 10 digits").max(10, "Phone number must be 10 digits"),
-});
-
-type AddressFormValues = z.infer<typeof addressSchema>;
+import { useAddress, addressSchema, type AddressFormValues } from "@/hooks/useAddress";
+import { Loader2 } from "lucide-react";
 
 interface AddressModalProps {
     isOpen: boolean;
@@ -24,7 +14,20 @@ interface AddressModalProps {
     onSubmit: (data: AddressFormValues) => void;
 }
 
+/**
+ * Address Modal Component
+ * 
+ * This component handles:
+ * - Address form input and validation
+ * - Loading states during submission
+ * - Error handling and display
+ * - Form submission and reset
+ * 
+ * @param {AddressModalProps} props - Component props
+ * @returns {JSX.Element} Rendered component
+ */
 const AddressModal = ({ isOpen, onClose, onSubmit }: AddressModalProps) => {
+    const { loading, error, success, addAddress, resetState } = useAddress();
 
     const form = useForm<AddressFormValues>({
         resolver: zodResolver(addressSchema),
@@ -38,20 +41,38 @@ const AddressModal = ({ isOpen, onClose, onSubmit }: AddressModalProps) => {
         },
     });
 
-    const handleSubmit = (data: AddressFormValues) => {
-        onSubmit(data);
+    const handleSubmit = async (data: AddressFormValues) => {
+        try {
+            await addAddress(data);
+            onSubmit(data);
+            form.reset();
+            onClose();
+        } catch (err) {
+            // Error is handled by the useAddress hook
+            console.error('Failed to add address:', err);
+        }
+    };
+
+    const handleClose = () => {
+        resetState();
         form.reset();
         onClose();
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+        <Dialog open={isOpen} onOpenChange={handleClose}>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>
                         Add New Address
                     </DialogTitle>
                 </DialogHeader>
+
+                {error && (
+                    <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
+                        {error}
+                    </div>
+                )}
 
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -67,6 +88,7 @@ const AddressModal = ({ isOpen, onClose, onSubmit }: AddressModalProps) => {
                                         <Input
                                             placeholder="Enter address line 1"
                                             className="bg-[#99BCDDB5]"
+                                            disabled={loading}
                                             {...field}
                                         />
                                     </FormControl>
@@ -87,6 +109,7 @@ const AddressModal = ({ isOpen, onClose, onSubmit }: AddressModalProps) => {
                                         <Input
                                             placeholder="Enter address line 2"
                                             className="bg-[#99BCDDB5]"
+                                            disabled={loading}
                                             {...field}
                                         />
                                     </FormControl>
@@ -108,6 +131,7 @@ const AddressModal = ({ isOpen, onClose, onSubmit }: AddressModalProps) => {
                                             <Input
                                                 placeholder="Enter city"
                                                 className="bg-[#99BCDDB5]"
+                                                disabled={loading}
                                                 {...field}
                                             />
                                         </FormControl>
@@ -128,6 +152,7 @@ const AddressModal = ({ isOpen, onClose, onSubmit }: AddressModalProps) => {
                                             <Input
                                                 placeholder="Enter state"
                                                 className="bg-[#99BCDDB5]"
+                                                disabled={loading}
                                                 {...field}
                                             />
                                         </FormControl>
@@ -151,6 +176,7 @@ const AddressModal = ({ isOpen, onClose, onSubmit }: AddressModalProps) => {
                                                 placeholder="Enter pincode"
                                                 className="bg-[#99BCDDB5]"
                                                 maxLength={6}
+                                                disabled={loading}
                                                 {...field}
                                             />
                                         </FormControl>
@@ -172,6 +198,7 @@ const AddressModal = ({ isOpen, onClose, onSubmit }: AddressModalProps) => {
                                                 placeholder="Enter phone number"
                                                 className="bg-[#99BCDDB5]"
                                                 maxLength={10}
+                                                disabled={loading}
                                                 {...field}
                                             />
                                         </FormControl>
@@ -185,7 +212,8 @@ const AddressModal = ({ isOpen, onClose, onSubmit }: AddressModalProps) => {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={onClose}
+                                onClick={handleClose}
+                                disabled={loading}
                             >
                                 Cancel
                             </Button>
@@ -196,8 +224,16 @@ const AddressModal = ({ isOpen, onClose, onSubmit }: AddressModalProps) => {
                                 <Button
                                     type="submit"
                                     variant="customer"
+                                    disabled={loading}
                                 >
-                                    Add Address
+                                    {loading ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Adding...
+                                        </>
+                                    ) : (
+                                        'Add Address'
+                                    )}
                                 </Button>
                             </motion.div>
                         </div>

@@ -12,7 +12,6 @@ import {
     FileText, 
     X 
 } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
 import {
     DropdownMenu,
@@ -20,79 +19,44 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useBulkDisputeUpload } from "@/hooks/useBulkDisputeUpload";
 
 interface BulkDisputeUploadModalProps {
     open: boolean;
     onClose: () => void;
 }
 
+/**
+ * Bulk Dispute Upload Modal Component
+ * 
+ * This component handles:
+ * - File selection and validation
+ * - Bulk dispute uploads
+ * - Sample template downloads
+ * - Loading and error states
+ * 
+ * @param {BulkDisputeUploadModalProps} props - Component props
+ * @returns {JSX.Element} Rendered component
+ */
 const BulkDisputeUploadModal = ({ open, onClose }: BulkDisputeUploadModalProps) => {
-    
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [isUploading, setIsUploading] = useState<boolean>(false);
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file && file.size <= 10 * 1024 * 1024) { // 10MB limit
-            setSelectedFile(file);
-        } else if (file) {
-            toast.error("File size should be less than 10MB");
-        }
-    };
+    const {
+        selectedFile,
+        isUploading,
+        error,
+        handleFileChange,
+        handleUpload,
+        handleDownloadSample,
+    } = useBulkDisputeUpload();
 
     const handleSave = async () => {
         if (!selectedFile) return;
 
         try {
-            setIsUploading(true);
-            const formData = new FormData();
-            formData.append("file", selectedFile);
-
-            // TODO: Replace with actual API endpoint
-            // const response = await fetch("/api/disputes/bulk-upload", {
-            //     method: "POST",
-            //     body: formData,
-            // });
-
-            // if (response.ok) {
-            //     onClose();
-            // }
-
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            // For now, just close the modal
+            await handleUpload();
             toast.success("Dispute report uploaded successfully!");
             onClose();
         } catch (error) {
-            console.error("Error uploading file:", error);
             toast.error("Failed to upload dispute report");
-        } finally {
-            setIsUploading(false);
-        }
-    };
-
-    const handleDownloadSample = (format: 'csv' | 'excel') => {
-        try {
-            // Create a link element to trigger download
-            const link = document.createElement('a');
-            
-            if (format === 'csv') {
-                link.href = '/docs/weight_dispute_template.csv';
-                link.download = 'weight_dispute_template.csv';
-            } else {
-                link.href = '/docs/weight_dispute_template.xlsx';
-                link.download = 'weight_dispute_template.xlsx';
-            }
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            toast.success(`${format.toUpperCase()} template downloaded`);
-        } catch (error) {
-            console.error("Download error:", error);
-            toast.error("Failed to download sample template");
         }
     };
 
@@ -149,6 +113,11 @@ const BulkDisputeUploadModal = ({ open, onClose }: BulkDisputeUploadModalProps) 
                         <p className="text-xs text-gray-500 mt-1">
                             Supported file formats: .xlsx, .xls, .csv
                         </p>
+                        {error && (
+                            <p className="text-xs text-red-500 mt-1">
+                                {error}
+                            </p>
+                        )}
                     </div>
 
                     <div className="flex justify-end gap-3">

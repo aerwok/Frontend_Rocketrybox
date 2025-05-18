@@ -8,13 +8,19 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, Trash2, Package, Loader2 } from "lucide-react";
+import { Search, Plus, Trash2, Package, Loader2, Filter, ArrowUpDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog";
-import * as XLSX from 'xlsx';
 import axios from 'axios';
 import { API_CONFIG } from '@/config/api.config';
+import { Link } from 'react-router-dom';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useProducts, useProductFilters } from '@/hooks/useProducts';
+import { ProductStatus } from '@/types/product';
+import { Label } from '@/components/ui/label';
 
 interface Product {
     id: string;
@@ -81,451 +87,262 @@ const mockProducts: Product[] = [
     }
 ];
 
-const SellerProductsPage = () => {
-    const [searchQuery, setSearchQuery] = useState("");
-    const [sortConfig, setSortConfig] = useState<{
-        key: keyof Product;
-        direction: "asc" | "desc";
-    } | null>(null);
-    const [open, setOpen] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [productToDelete, setProductToDelete] = useState<Product | null>(null);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+/**
+ * Product Filters Component
+ * Handles filtering of products based on various criteria
+ */
+const ProductFilters = ({ onApplyFilters }: { onApplyFilters: (filters: any) => void }) => {
+    const [search, setSearch] = useState('');
+    const [status, setStatus] = useState<string>('');
+    const [category, setCategory] = useState<string>('');
 
-    // Fetch products from API
-    const fetchProducts = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const response = await axios.get(`${API_CONFIG.baseURL}/seller/products`, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    // Add authentication headers if needed
-                }
-            });
-            
-            if (response.data?.success) {
-                setProducts(response.data.data);
-            } else {
-                throw new Error(response.data?.message || 'Failed to fetch products');
-            }
-        } catch (err) {
-            console.error('Error fetching products:', err);
-            setError('Failed to load products. Please try again later.');
-            // Fallback to mock data in development
-            if (process.env.NODE_ENV === 'development') {
-                setProducts(mockProducts);
-                toast.error('Using mock data - API connection failed');
-            }
-        } finally {
-            setIsLoading(false);
-        }
+    const handleApply = () => {
+        onApplyFilters({
+            search,
+            status,
+            category
+        });
     };
 
-    // Load products on component mount
-    useEffect(() => {
-        fetchProducts();
-    }, []);
-
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchQuery(e.target.value);
+    const handleReset = () => {
+        setSearch('');
+        setStatus('');
+        setCategory('');
+        onApplyFilters({});
     };
-
-    const handleSort = (key: keyof Product) => {
-        setSortConfig(current => ({
-            key,
-            direction: current?.key === key && current.direction === "asc" ? "desc" : "asc",
-        }));
-    };
-
-    const handleDelete = (productId: string) => {
-        const product = products.find(p => p.id === productId);
-        if (product) {
-            setProductToDelete(product);
-            setDeleteDialogOpen(true);
-        }
-    };
-
-    const confirmDelete = async () => {
-        if (productToDelete) {
-            try {
-                setIsLoading(true);
-                // Make API call to delete product
-                const response = await axios.delete(`${API_CONFIG.baseURL}/seller/products/${productToDelete.id}`, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        // Add authentication headers if needed
-                    }
-                });
-                
-                if (response.data?.success) {
-                    // Update local state by removing the deleted product
-                    setProducts(prevProducts => 
-                        prevProducts.filter(p => p.id !== productToDelete.id)
-                    );
-                    toast.success(`Product "${productToDelete.name}" deleted successfully.`);
-                } else {
-                    throw new Error(response.data?.message || 'Failed to delete product');
-                }
-            } catch (err) {
-                console.error('Error deleting product:', err);
-                toast.error('Failed to delete product. Please try again.');
-            } finally {
-                setIsLoading(false);
-                setDeleteDialogOpen(false);
-                setProductToDelete(null);
-            }
-        }
-    };
-
-    const handleAddNewProduct = () => {
-        setOpen(true);
-    };
-
-    const handleUpload = async () => {
-        if (!fileInputRef.current?.files?.length) {
-            toast.error('Please select a file to upload');
-            return;
-        }
-
-        const file = fileInputRef.current.files[0];
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            setIsLoading(true);
-            // Make API call to upload Excel file
-            const response = await axios.post(`${API_CONFIG.baseURL}/seller/products/import`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                    // Add authentication headers if needed
-                }
-            });
-            
-            if (response.data?.success) {
-                toast.success('Products imported successfully');
-                // Refresh product list
-                fetchProducts();
-                // Close upload dialog
-                setOpen(false);
-            } else {
-                throw new Error(response.data?.message || 'Failed to import products');
-            }
-        } catch (err) {
-            console.error('Error uploading products:', err);
-            toast.error('Failed to import products. Please check your file format and try again.');
-        } finally {
-            setIsLoading(false);
-            // Reset file input
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-    };
-
-    const handleSampleFile = () => {
-        // Create a workbook with sample headers
-        const workbook = XLSX.utils.book_new();
-        const headers = [
-            "Product Name", 
-            "SKU", 
-            "Category", 
-            "Price", 
-            "Stock", 
-            "Status", 
-            "Last Updated"
-        ];
-        
-        // Create empty rows for sample data
-        const sampleData = [
-            headers,
-            ["Premium Laptop", "LAP001", "Electronics", "49999", "50", "Active", "2024-03-25"],
-            ["Wireless Mouse", "MOU001", "Accessories", "1799", "100", "Active", "2024-03-25"]
-        ];
-        
-        const worksheet = XLSX.utils.aoa_to_sheet(sampleData);
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Sample Products");
-        
-        // Generate and download the Excel file
-        XLSX.writeFile(workbook, "sample_products_sheet.xlsx");
-        
-        toast.success("Sample file downloaded successfully!");
-    };
-
-    const filteredProducts = products.filter(product =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    const sortedProducts = [...filteredProducts].sort((a, b) => {
-        if (!sortConfig) return 0;
-        const { key, direction } = sortConfig;
-        if (a[key] < b[key]) return direction === "asc" ? -1 : 1;
-        if (a[key] > b[key]) return direction === "asc" ? 1 : -1;
-        return 0;
-    });
 
     return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <h1 className="text-xl lg:text-2xl font-semibold">
-                    Products SKU
-                </h1>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <Package className="size-4" />
-                    <span>Manage your product inventory</span>
+        <div className="flex flex-wrap gap-4 mb-6">
+            <div className="flex-1 min-w-[200px]">
+                <Label htmlFor="search">Search</Label>
+                <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                    <Input
+                        id="search"
+                        placeholder="Search products..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-8"
+                    />
                 </div>
             </div>
-
-            <div className="space-y-4">
-                {/* Search and Actions */}
-                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 w-full lg:w-auto">
-                        <div className="relative flex-1 lg:w-[300px]">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                            <Input
-                                placeholder="Search products..."
-                                className="pl-9"
-                                value={searchQuery}
-                                onChange={handleSearch}
-                            />
-                        </div>
-                    </div>
-                    <Button className="w-full lg:w-auto" onClick={handleAddNewProduct}>
-                        <Plus className="size-4 mr-2" />
-                        Add New Product
-                    </Button>
-                    <Dialog open={open} onOpenChange={setOpen}>
-                        <DialogContent className="max-w-lg w-full rounded-xl shadow-lg p-6" showCloseButton={false}>
-                            <DialogHeader>
-                                <DialogTitle className="text-lg font-semibold">UPLOAD SKU</DialogTitle>
-                                <DialogClose asChild>
-                                    <button className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 text-xl">&times;</button>
-                                </DialogClose>
-                            </DialogHeader>
-                            <div className="flex flex-col gap-4 mt-2">
-                                <label className="font-medium text-sm">Upload Excel <span className="text-red-500">*</span></label>
-                                <div className="flex flex-col gap-3 items-stretch">
-                                    <input 
-                                        ref={fileInputRef} 
-                                        type="file" 
-                                        accept=".xlsx,.xls" 
-                                        className="border rounded px-2 py-1 flex-1 min-w-0"
-                                        disabled={isLoading}
-                                    />
-                                    <div className="flex gap-2 mt-2 sm:mt-0">
-                                        <Button 
-                                            type="button" 
-                                            className="bg-green-500 hover:bg-green-600 text-white flex gap-1 items-center px-4 py-2 rounded-md shadow-none" 
-                                            onClick={handleUpload}
-                                            disabled={isLoading}
-                                        >
-                                            {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-                                            {isLoading ? 'Uploading...' : 'Upload'}
-                                        </Button>
-                                        <Button 
-                                            type="button" 
-                                            className="bg-yellow-400 hover:bg-yellow-500 text-white flex gap-1 items-center px-4 py-2 rounded-md shadow-none" 
-                                            onClick={handleSampleFile}
-                                            disabled={isLoading}
-                                        >
-                                            <Plus className="size-4" /> Download Template
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-
-                {/* Products Table */}
-                <div className="rounded-lg border">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("name")}
-                                >
-                                    Product Name
-                                    {sortConfig?.key === "name" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("sku")}
-                                >
-                                    SKU
-                                    {sortConfig?.key === "sku" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("category")}
-                                >
-                                    Category
-                                    {sortConfig?.key === "category" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("price")}
-                                >
-                                    Price
-                                    {sortConfig?.key === "price" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("stock")}
-                                >
-                                    Stock
-                                    {sortConfig?.key === "stock" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("status")}
-                                >
-                                    Status
-                                    {sortConfig?.key === "status" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("lastUpdated")}
-                                >
-                                    Last Updated
-                                    {sortConfig?.key === "lastUpdated" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead>Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-8">
-                                        <div className="flex items-center justify-center">
-                                            <Loader2 className="size-6 animate-spin text-gray-500 mr-2" />
-                                            <span className="text-gray-500">Loading products...</span>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ) : error ? (
-                                <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-8 text-red-500">
-                                        {error}
-                                    </TableCell>
-                                </TableRow>
-                            ) : sortedProducts.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                                        No products found
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                sortedProducts.map((product) => (
-                                    <TableRow key={product.id}>
-                                        <TableCell className="font-medium">{product.name}</TableCell>
-                                        <TableCell>{product.sku}</TableCell>
-                                        <TableCell>{product.category}</TableCell>
-                                        <TableCell>₹{product.price.toLocaleString()}</TableCell>
-                                        <TableCell>{product.stock}</TableCell>
-                                        <TableCell>
-                                            <span
-                                                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                                    product.status === "Active"
-                                                        ? "bg-green-100 text-green-800"
-                                                        : "bg-red-100 text-red-800"
-                                                }`}
-                                            >
-                                                {product.status}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>{product.lastUpdated}</TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleDelete(product.id)}
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                    disabled={isLoading}
-                                                >
-                                                    <Trash2 className="size-4" />
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
+            <div className="w-[200px]">
+                <Label htmlFor="status">Status</Label>
+                <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">All</SelectItem>
+                        <SelectItem value={ProductStatus.ACTIVE}>Active</SelectItem>
+                        <SelectItem value={ProductStatus.INACTIVE}>Inactive</SelectItem>
+                        <SelectItem value={ProductStatus.DRAFT}>Draft</SelectItem>
+                        <SelectItem value={ProductStatus.ARCHIVED}>Archived</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
-
-            {/* Delete Confirmation Dialog */}
-            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                <DialogContent className="max-w-md rounded-xl shadow-lg">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-semibold">Confirm Delete</DialogTitle>
-                    </DialogHeader>
-                    <div className="py-4">
-                        {productToDelete && (
-                            <p className="text-gray-700">
-                                Are you sure you want to delete "<span className="font-medium">{productToDelete.name}</span>"? This action cannot be undone.
-                            </p>
-                        )}
-                    </div>
-                    <DialogFooter className="flex justify-end gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => setDeleteDialogOpen(false)}
-                            disabled={isLoading}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={confirmDelete}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? (
-                                <>
-                                    <Loader2 className="size-4 animate-spin mr-2" />
-                                    Deleting...
-                                </>
-                            ) : 'Delete'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <div className="w-[200px]">
+                <Label htmlFor="category">Category</Label>
+                <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">All Categories</SelectItem>
+                        {/* Add categories dynamically when available */}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="flex items-end gap-2">
+                <Button onClick={handleApply} className="bg-[#7352FF] hover:bg-[#5e3dd3]">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Apply Filters
+                </Button>
+                <Button variant="outline" onClick={handleReset}>
+                    Reset
+                </Button>
+            </div>
         </div>
     );
 };
 
-export default SellerProductsPage; 
+/**
+ * Products Table Component
+ * Displays the list of products with sorting and actions
+ */
+const ProductsTable = ({ products, onSort }: { 
+    products: any[],
+    onSort: (key: string) => void
+}) => {
+    return (
+        <div className="rounded-lg border">
+            <Table>
+                <TableHeader className="bg-[#F4F2FF]">
+                    <TableRow>
+                        <TableHead className="w-[50px]">#</TableHead>
+                        <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => onSort('name')}
+                        >
+                            Name <ArrowUpDown className="inline h-4 w-4 ml-1" />
+                        </TableHead>
+                        <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => onSort('sku')}
+                        >
+                            SKU <ArrowUpDown className="inline h-4 w-4 ml-1" />
+                        </TableHead>
+                        <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => onSort('price')}
+                        >
+                            Price <ArrowUpDown className="inline h-4 w-4 ml-1" />
+                        </TableHead>
+                        <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => onSort('inventory')}
+                        >
+                            Inventory <ArrowUpDown className="inline h-4 w-4 ml-1" />
+                        </TableHead>
+                        <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => onSort('status')}
+                        >
+                            Status <ArrowUpDown className="inline h-4 w-4 ml-1" />
+                        </TableHead>
+                        <TableHead>Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {products.map((product, index) => (
+                        <TableRow key={product.id}>
+                            <TableCell>{index + 1}</TableCell>
+                            <TableCell>
+                                <Link to={`/seller/dashboard/products/${product.id}`} className="text-blue-600 hover:underline">
+                                    {product.name}
+                                </Link>
+                            </TableCell>
+                            <TableCell>{product.sku}</TableCell>
+                            <TableCell>₹{product.price.toFixed(2)}</TableCell>
+                            <TableCell>{product.inventory}</TableCell>
+                            <TableCell>
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                    product.status === ProductStatus.ACTIVE ? 'bg-green-100 text-green-800' :
+                                    product.status === ProductStatus.INACTIVE ? 'bg-red-100 text-red-800' :
+                                    product.status === ProductStatus.DRAFT ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-gray-100 text-gray-800'
+                                }`}>
+                                    {product.status}
+                                </span>
+                            </TableCell>
+                            <TableCell>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                    >
+                                        <Link to={`/seller/dashboard/products/${product.id}/edit`}>
+                                            Edit
+                                        </Link>
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-red-600 hover:text-red-700"
+                                    >
+                                        Delete
+                                    </Button>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </div>
+    );
+};
+
+/**
+ * Products Page Component
+ * Main component for managing products
+ */
+export default function ProductsPage() {
+    const {
+        products,
+        isLoading,
+        error,
+        total,
+        page,
+        limit,
+        totalPages,
+        setPage,
+        setLimit,
+        fetchProducts,
+        refreshProducts
+    } = useProducts();
+
+    const { filters, applyFilters } = useProductFilters();
+
+    const handleSort = (key: string) => {
+        // Implement sorting logic
+        console.log('Sort by:', key);
+    };
+
+    if (isLoading && !products.length) {
+        return (
+            <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold">Products</h1>
+                <Button
+                    className="bg-[#7352FF] hover:bg-[#5e3dd3]"
+                >
+                    <Link to="/seller/dashboard/products/new">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Product
+                    </Link>
+                </Button>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Product List</CardTitle>
+                    <CardDescription>
+                        Manage your products, update inventory, and track performance
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ProductFilters onApplyFilters={applyFilters} />
+                    
+                    {products.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                            No products found. Add your first product to get started.
+                        </div>
+                    ) : (
+                        <ProductsTable 
+                            products={products}
+                            onSort={handleSort}
+                        />
+                    )}
+
+                    {/* Add pagination component here */}
+                </CardContent>
+            </Card>
+        </div>
+    );
+} 

@@ -1,32 +1,43 @@
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { LucideIcon } from "lucide-react";
+import { LucideIcon, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useStats } from "@/hooks/useStats";
 
 interface StatCardProps {
     title: string;
     subtitle?: string;
-    value: string | number;
-    todayValue?: string | number;
+    statType: 'orders' | 'revenue' | 'returns' | 'customers';
     icon: LucideIcon;
     href: string;
-    additionalValue?: {
-        label: string;
-        value: string | number;
-    };
+    timeRange?: 'today' | 'week' | 'month' | 'year';
     iconClassName?: string;
 }
 
+/**
+ * StatCard Component
+ * 
+ * This component displays a single statistic card with:
+ * - Title and subtitle
+ * - Current value
+ * - Today's value (if applicable)
+ * - Additional value (if applicable)
+ * - Loading and error states
+ * 
+ * @param {StatCardProps} props - Component props
+ * @returns {JSX.Element} The rendered card
+ */
 const StatCard = ({
     title,
     subtitle,
-    value,
-    todayValue,
+    statType,
     icon: Icon,
     href,
-    additionalValue,
+    timeRange = 'today',
     iconClassName
 }: StatCardProps) => {
+    const { data, isLoading, error } = useStats({ statType, timeRange });
+
     return (
         <Card className="px-4 py-3 bg-[#BCDDFF] h-[140px] flex flex-col justify-between relative group">
             <div className="flex justify-between items-start">
@@ -48,31 +59,43 @@ const StatCard = ({
                 </div>
             </div>
             <div>
-                {todayValue !== undefined && (
-                    <div className="flex flex-col">
-                        <p className="text-sm">
-                            Today's total:
-                        </p>
-                        <p className="text-2xl font-semibold">
-                            {todayValue}
-                        </p>
+                {isLoading ? (
+                    <div className="flex items-center justify-center h-12">
+                        <Loader2 className="h-6 w-6 animate-spin" />
                     </div>
-                )}
-                {additionalValue && (
-                    <div className="flex flex-col">
-                        <p className="text-sm">
-                            {additionalValue.label}:
-                        </p>
-                        <p className="text-2xl font-semibold">
-                            {additionalValue.value}
-                        </p>
+                ) : error ? (
+                    <div className="text-sm text-destructive">
+                        {error}
                     </div>
-                )}
-                {!todayValue && !additionalValue && (
-                    <p className="text-2xl font-semibold">
-                        {value}
-                    </p>
-                )}
+                ) : data ? (
+                    <>
+                        {data.todayValue !== undefined && (
+                            <div className="flex flex-col">
+                                <p className="text-sm">
+                                    Today's total:
+                                </p>
+                                <p className="text-2xl font-semibold">
+                                    {data.todayValue}
+                                </p>
+                            </div>
+                        )}
+                        {data.additionalValue && (
+                            <div className="flex flex-col">
+                                <p className="text-sm">
+                                    {data.additionalValue.label}:
+                                </p>
+                                <p className="text-2xl font-semibold">
+                                    {data.additionalValue.value}
+                                </p>
+                            </div>
+                        )}
+                        {!data.todayValue && !data.additionalValue && (
+                            <p className="text-2xl font-semibold">
+                                {data.value}
+                            </p>
+                        )}
+                    </>
+                ) : null}
             </div>
             <Link
                 to={href}

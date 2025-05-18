@@ -1,77 +1,56 @@
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/store/use-sidebar-store";
 import { AnimatePresence, motion } from "framer-motion";
-import { LayoutDashboard, UsersIcon, HeartHandshakeIcon, PackageIcon, ClipboardListIcon, SettingsIcon, AlertTriangleIcon, TruckIcon, MessageSquare, AlertCircle, WalletIcon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import Icons from "../shared/icons";
+import { useSidebarMenu } from "@/hooks/useSidebarMenu";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const SIDEBAR_LINKS = [
-    {
-        icon: LayoutDashboard,
-        to: "/admin/dashboard",
-        label: "Dashboard",
-    },
-    {
-        icon: UsersIcon,
-        to: "/admin/dashboard/users",
-        label: "Users",
-    },
-    {
-        icon: Icons.team,
-        to: "/admin/dashboard/teams",
-        label: "Teams",
-    },
-    {
-        icon: HeartHandshakeIcon,
-        to: "/admin/dashboard/partners",
-        label: "Partners",
-    },
-    {
-        icon: PackageIcon,
-        to: "/admin/dashboard/orders",
-        label: "Orders",
-    },
-    {
-        icon: TruckIcon,
-        to: "/admin/dashboard/shipments",
-        label: "Shipments",
-    },
-    {
-        icon: MessageSquare,
-        to: "/admin/dashboard/tickets",
-        label: "Tickets",
-    },
-    {
-        icon: AlertCircle,
-        to: "/admin/dashboard/ndr",
-        label: "NDR",
-    },
-    {
-        icon: WalletIcon,
-        to: "/admin/dashboard/billing",
-        label: "Billing",
-    },
-    {
-        icon: ClipboardListIcon,
-        to: "/admin/dashboard/reports",
-        label: "Reports",
-    },
-    {
-        icon: AlertTriangleIcon,
-        to: "/admin/dashboard/escalation",
-        label: "Escalation",
-    },
-    {
-        icon: SettingsIcon,
-        to: "/admin/dashboard/settings",
-        label: "Settings",
-    },
-];
-
+/**
+ * AdminDashboardSidebar Component
+ * 
+ * A responsive sidebar component for the admin dashboard that displays navigation links
+ * with loading states and error handling. The sidebar can be collapsed/expanded.
+ */
 const AdminDashboardSidebar = () => {
     const { pathname } = useLocation();
     const isExpanded = useSidebarStore((state) => state.isExpanded);
+    const { menuItems, loading, error } = useSidebarMenu();
+
+    // Render loading skeleton when data is being fetched
+    if (loading) {
+        return (
+            <aside className={cn(
+                "fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white border-r transition-all duration-300 z-40",
+                isExpanded ? "w-64" : "w-16",
+                "lg:sticky lg:top-16"
+            )}>
+                <div className="flex flex-col items-start px-2 pt-4 space-y-1">
+                    {[...Array(12)].map((_, index) => (
+                        <Skeleton key={index} className={cn(
+                            "h-10 rounded-lg",
+                            isExpanded ? "w-full" : "w-10"
+                        )} />
+                    ))}
+                </div>
+            </aside>
+        );
+    }
+
+    // Render error state
+    if (error) {
+        return (
+            <aside className={cn(
+                "fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white border-r transition-all duration-300 z-40",
+                isExpanded ? "w-64" : "w-16",
+                "lg:sticky lg:top-16"
+            )}>
+                <div className="flex items-center justify-center h-full">
+                    <p className="text-red-500 text-sm">Failed to load menu items</p>
+                </div>
+            </aside>
+        );
+    }
 
     return (
         <aside className={cn(
@@ -84,8 +63,7 @@ const AdminDashboardSidebar = () => {
                 isExpanded && "min-w-[256px]"
             )}>
                 <TooltipProvider delayDuration={0}>
-                    {/* Sidebar Links */}
-                    {SIDEBAR_LINKS.map((link) => {
+                    {menuItems.map((link) => {
                         const Icon = link.icon;
                         const isActive = pathname === link.to;
 

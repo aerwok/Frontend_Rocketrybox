@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input";
-import { FileSpreadsheet, UploadCloud } from "lucide-react";
-import { useState } from "react";
+import { FileSpreadsheet, UploadCloud, Loader2 } from "lucide-react";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { toast } from "sonner";
 
 interface FileUploadProps {
@@ -9,68 +9,75 @@ interface FileUploadProps {
     maxSize?: number;
 }
 
-const FileUpload = ({ onFileSelect, accept = ".xls,.xlsx,.csv", maxSize = 5 }: FileUploadProps) => {
-
-    const [dragActive, setDragActive] = useState<boolean>(false);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-    const validateFile = (file: File) => {
-        const fileType = file.name.split('.').pop()?.toLowerCase();
-        const validTypes = accept.split(',').map(type => type.replace('.', '').toLowerCase());
-
-        if (!validTypes.includes(fileType || '')) {
-            toast.error(`Invalid file type. Please upload ${accept} files only`);
-            return false;
-        }
-
-        const fileSize = file.size / (1024 * 1024); // Convert to MB
-        if (fileSize > maxSize) {
-            toast.error(`File size should be less than ${maxSize}MB`);
-            return false;
-        }
-
-        return true;
-    };
+/**
+ * File Upload Component
+ * 
+ * This component handles:
+ * - File selection via click or drag-and-drop
+ * - File validation (type and size)
+ * - Upload progress tracking
+ * - Loading and error states
+ * - Success callbacks
+ * 
+ * @param {FileUploadProps} props - Component props
+ * @returns {JSX.Element} Rendered component
+ */
+const FileUpload = ({ 
+    onFileSelect, 
+    accept = ".xls,.xlsx,.csv", 
+    maxSize = 5 
+}: FileUploadProps) => {
+    const {
+        file,
+        isUploading,
+        error,
+        progress,
+        handleFileSelect,
+        handleFileDrop,
+        reset,
+    } = useFileUpload({
+        accept,
+        maxSize,
+        onUploadSuccess: (response) => {
+            toast.success("File uploaded successfully");
+            onFileSelect(file!);
+        },
+        onUploadError: (error) => {
+            toast.error(error.message);
+        },
+    });
 
     const handleDrag = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
         if (e.type === "dragenter" || e.type === "dragover") {
-            setDragActive(true);
+            e.currentTarget.classList.add("border-violet-500", "bg-violet-50");
         } else if (e.type === "dragleave") {
-            setDragActive(false);
+            e.currentTarget.classList.remove("border-violet-500", "bg-violet-50");
         }
     };
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        setDragActive(false);
+        e.currentTarget.classList.remove("border-violet-500", "bg-violet-50");
 
-        const file = e.dataTransfer.files[0];
-        if (file && validateFile(file)) {
-            setSelectedFile(file);
-            onFileSelect(file);
+        const droppedFile = e.dataTransfer.files[0];
+        if (droppedFile) {
+            handleFileDrop(droppedFile);
         }
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            if (validateFile(file)) {
-                setSelectedFile(file);
-                onFileSelect(file);
-            }
+            handleFileSelect(e.target.files[0]);
         }
     };
 
     return (
         <div className="w-full">
             <div
-                className={`relative border-2 border-dashed rounded-lg p-6 ${dragActive
-                    ? "border-violet-500 bg-violet-50"
-                    : "border-gray-300 bg-gray-50"
-                    }`}
+                className="relative border-2 border-dashed rounded-lg p-6 border-gray-300 bg-gray-50"
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
@@ -79,19 +86,27 @@ const FileUpload = ({ onFileSelect, accept = ".xls,.xlsx,.csv", maxSize = 5 }: F
                 <Input
                     type="file"
                     accept={accept}
-                    onChange={handleFileSelect}
+                    onChange={handleInputChange}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    disabled={isUploading}
                 />
                 <div className="text-center">
-                    {selectedFile ? (
+                    {isUploading ? (
+                        <div className="flex flex-col items-center justify-center gap-2">
+                            <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+                            <p className="text-sm text-gray-600">
+                                Uploading... {progress}%
+                            </p>
+                        </div>
+                    ) : file ? (
                         <div className="flex items-center justify-center gap-2">
                             <FileSpreadsheet className="h-8 w-8 text-violet-500" />
                             <div>
                                 <p className="text-sm font-medium">
-                                    {selectedFile.name}
+                                    {file.name}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                    {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                                    {(file.size / (1024 * 1024)).toFixed(2)} MB
                                 </p>
                             </div>
                         </div>
@@ -108,6 +123,11 @@ const FileUpload = ({ onFileSelect, accept = ".xls,.xlsx,.csv", maxSize = 5 }: F
                     )}
                 </div>
             </div>
+            {error && (
+                <p className="mt-2 text-sm text-red-500">
+                    {error}
+                </p>
+            )}
         </div>
     );
 };

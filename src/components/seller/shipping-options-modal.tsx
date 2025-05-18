@@ -1,11 +1,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { calculateShippingRate, determineZone } from "@/lib/shipping-calculator";
-import { useState, useEffect } from "react";
-//import { RateData } from "@/types/shipping";
-// import { useQuery } from "@tanstack/react-query";
-import { mockRateCards } from "@/services/mock/rate-cards";
+import { useState } from "react";
+import { useShippingRates } from "@/hooks/useShippingRates";
+import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ShippingOptionsModalProps {
     open: boolean;
@@ -21,89 +20,59 @@ interface ShippingOptionsModalProps {
             total: number;
         };
     }) => void;
-    isCOD?: boolean; // Add isCOD as an optional prop
+    isCOD?: boolean;
 }
 
+/**
+ * ShippingOptionsModal Component
+ * 
+ * This component renders a modal for selecting shipping options, including:
+ * - Warehouse selection
+ * - Shipping rate calculation
+ * - Courier selection
+ * - Rate display
+ * 
+ * @param {ShippingOptionsModalProps} props - Component props
+ * @returns {JSX.Element} The rendered modal
+ */
 export function ShippingOptionsModal({
     open,
     onOpenChange,
     singleOrderId,
     onSubmit,
-    isCOD = false // Default to false if not provided
+    isCOD = false
 }: ShippingOptionsModalProps) {
-    const [warehouse, setWarehouse] = useState("400001"); // Mumbai pincode
+    const [warehouse, setWarehouse] = useState("400001");
     const [rtoWarehouse, setRtoWarehouse] = useState("400001");
     const [showAddress, setShowAddress] = useState(false);
     const [selectedCourier, setSelectedCourier] = useState("");
     const [selectedMode, setSelectedMode] = useState("");
-    const [courierRates, setCourierRates] = useState<any[]>([]);
-    const [currentZone, setCurrentZone] = useState("");
-    
-    // Sample destination pincode (should come from order details)
-    const destinationPincode = "110001"; // Delhi pincode
-    const weight = 0.5; // Sample weight in kg
 
-    // Comment out React Query code for now
-    /* const { data: rateData, isLoading } = useQuery<RateData[]>({
-        queryKey: ['rateCards'],
-        queryFn: async () => {
-            const response = await fetch('/api/rate-cards');
-            if (!response.ok) {
-                throw new Error('Failed to fetch rate cards');
-            }
-            return response.json();
-        }
-    }); */
+    // Use shipping rates hook
+    const {
+        rates: courierRates,
+        currentZone,
+        isLoading,
+        error,
+    } = useShippingRates({
+        warehousePincode: warehouse,
+        destinationPincode: "110001", // TODO: Get from order details
+        weight: 0.5, // TODO: Get from order details
+        isCOD,
+    });
 
-    useEffect(() => {
-        const calculateRates = async () => {
-            // Determine zone
-            const zone = determineZone(warehouse, destinationPincode);
-            setCurrentZone(zone);
-
-            // Calculate rates using mock data
-            const rates = await Promise.all(
-                mockRateCards.map(async rateCard => {
-                    try {
-                        const rates = await calculateShippingRate(
-                            warehouse,
-                            destinationPincode,
-                            weight,
-                            rateCard.mode,
-                            isCOD,
-                            mockRateCards
-                        );
-
-                        return {
-                            mode: rateCard.mode,
-                            courier: rateCard.mode.split(" ")[0],
-                            baseCharge: rates.baseCharge,
-                            additionalWeightCharge: rates.additionalWeightCharge,
-                            codCharge: isCOD ? rates.codCharge : 0,
-                            gst: rates.gst,
-                            total: rates.total,
-                            gstPercentage: rates.gstPercentage
-                        };
-                    } catch (error) {
-                        console.error(`Error calculating rates for ${rateCard.mode}:`, error);
-                        return null;
-                    }
-                })
-            );
-
-            // Filter out any failed calculations
-            const validRates = rates.filter(rate => rate !== null);
-            setCourierRates(validRates);
-        };
-
-        calculateRates();
-    }, [warehouse, destinationPincode, weight, isCOD]);
-
+    /**
+     * Handle courier selection
+     * @param {ShippingRate} rate - Selected shipping rate
+     */
     const handleCourierSelect = (rate: any) => {
         setSelectedCourier(rate.courier);
         setSelectedMode(rate.mode);
     };
 
+    /**
+     * Handle form submission
+     */
     const handleSubmit = () => {
         if (selectedCourier && selectedMode) {
             const selectedRate = courierRates.find(
@@ -125,19 +94,6 @@ export function ShippingOptionsModal({
             }
         }
     };
-
-    // Comment out loading state since we're using mock data
-    /* if (isLoading) {
-        return (
-            <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="max-w-4xl">
-                    <div className="flex items-center justify-center p-8">
-                        Loading rate cards...
-                    </div>
-                </DialogContent>
-            </Dialog>
-        );
-    } */
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -185,12 +141,18 @@ export function ShippingOptionsModal({
                             <div>
                                 <p className="text-sm font-medium">Zone</p>
                                 <p className="text-sm text-gray-600 capitalize">
-                                    {currentZone ? currentZone.replace(/([A-Z])/g, ' $1').trim() : "Calculating..."}
+                                    {isLoading ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : error ? (
+                                        <span className="text-destructive">Error</span>
+                                    ) : (
+                                        currentZone.replace(/([A-Z])/g, ' $1').trim()
+                                    )}
                                 </p>
                             </div>
                             <div>
                                 <p className="text-sm font-medium">Weight</p>
-                                <p className="text-sm text-gray-600">{weight} kg</p>
+                                <p className="text-sm text-gray-600">0.5 kg</p>
                             </div>
                         </div>
                     </div>
@@ -210,31 +172,46 @@ export function ShippingOptionsModal({
                                 </tr>
                             </thead>
                             <tbody>
-                                {courierRates.map((rate, index) => (
-                                    <tr
-                                        key={index}
-                                        className={`${index % 2 === 0 ? "bg-white" : "bg-gray-50"} ${
-                                            selectedCourier === rate.courier && selectedMode === rate.mode
-                                                ? "bg-blue-50"
-                                                : ""
-                                        }`}
-                                    >
-                                        <td className="px-4 py-2">
-                                            <input
-                                                type="radio"
-                                                name="courier"
-                                                checked={selectedCourier === rate.courier && selectedMode === rate.mode}
-                                                onChange={() => handleCourierSelect(rate)}
-                                            />
+                                {isLoading ? (
+                                    <tr>
+                                        <td colSpan={isCOD ? 7 : 6} className="px-4 py-8 text-center">
+                                            <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                                         </td>
-                                        <td className="px-4 py-2">{rate.courier}</td>
-                                        <td className="px-4 py-2">{rate.mode.split("-")[0].split(" ")[2]}</td>
-                                        {isCOD && <td className="px-4 py-2 text-right">₹{rate.codCharge.toFixed(2)}</td>}
-                                        <td className="px-4 py-2 text-right">₹{(rate.baseCharge + rate.additionalWeightCharge).toFixed(2)}</td>
-                                        <td className="px-4 py-2 text-right">₹{rate.gst.toFixed(2)}</td>
-                                        <td className="px-4 py-2 text-right font-medium">₹{rate.total.toFixed(2)}</td>
                                     </tr>
-                                ))}
+                                ) : error ? (
+                                    <tr>
+                                        <td colSpan={isCOD ? 7 : 6} className="px-4 py-8 text-center text-destructive">
+                                            {error}
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    courierRates.map((rate, index) => (
+                                        <tr
+                                            key={index}
+                                            className={cn(
+                                                index % 2 === 0 ? "bg-white" : "bg-gray-50",
+                                                selectedCourier === rate.courier && selectedMode === rate.mode
+                                                    ? "bg-blue-50"
+                                                    : ""
+                                            )}
+                                        >
+                                            <td className="px-4 py-2">
+                                                <input
+                                                    type="radio"
+                                                    name="courier"
+                                                    checked={selectedCourier === rate.courier && selectedMode === rate.mode}
+                                                    onChange={() => handleCourierSelect(rate)}
+                                                />
+                                            </td>
+                                            <td className="px-4 py-2">{rate.courier}</td>
+                                            <td className="px-4 py-2">{rate.mode.split("-")[0].split(" ")[2]}</td>
+                                            {isCOD && <td className="px-4 py-2 text-right">₹{rate.codCharge.toFixed(2)}</td>}
+                                            <td className="px-4 py-2 text-right">₹{(rate.baseCharge + rate.additionalWeightCharge).toFixed(2)}</td>
+                                            <td className="px-4 py-2 text-right">₹{rate.gst.toFixed(2)}</td>
+                                            <td className="px-4 py-2 text-right font-medium">₹{rate.total.toFixed(2)}</td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -243,10 +220,14 @@ export function ShippingOptionsModal({
                     <div className="flex justify-end">
                         <button
                             onClick={handleSubmit}
-                            disabled={!selectedCourier || !selectedMode}
+                            disabled={!selectedCourier || !selectedMode || isLoading}
                             className="bg-primary text-white px-4 py-2 rounded-md disabled:opacity-50"
                         >
-                            Confirm Selection
+                            {isLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                "Confirm Selection"
+                            )}
                         </button>
                     </div>
                 </div>

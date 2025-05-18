@@ -1,10 +1,6 @@
-import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { X, Upload } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { ReturnOrderInput, returnOrderSchema } from "@/lib/validations/order-actions";
+import { X, Upload, Loader2 } from "lucide-react";
 import {
     Form,
     FormControl,
@@ -22,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useReturnOrder } from "@/hooks/useReturnOrder";
 
 interface ReturnOrderModalProps {
     isOpen: boolean;
@@ -29,49 +26,37 @@ interface ReturnOrderModalProps {
     orderId: string;
 }
 
-const returnReasons = [
-    "Damaged Product",
-    "Wrong Product Delivered",
-    "Product Not As Described",
-    "Missing Parts/Accessories",
-    "Defective Product",
-    "Other"
-];
-
+/**
+ * Return Order Modal Component
+ * 
+ * This component handles:
+ * - Return order form
+ * - Image upload and management
+ * - Form submission
+ * - Loading and error states
+ * 
+ * @param {ReturnOrderModalProps} props - Component props
+ * @returns {JSX.Element} Rendered component
+ */
 const ReturnOrderModal = ({ isOpen, onClose, orderId }: ReturnOrderModalProps) => {
-    const [uploadedImages, setUploadedImages] = useState<string[]>([]);
-
-    const form = useForm<ReturnOrderInput>({
-        resolver: zodResolver(returnOrderSchema),
-        defaultValues: {
-            orderId,
-            returnReason: "",
-            returnType: "REFUND",
-            description: "",
-            images: [],
-        },
-    });
-
-    const onSubmit = async (data: ReturnOrderInput) => {
-        try {
-            console.log("Return order data:", data);
-            // Here you would typically send the data to your API
+    const {
+        form,
+        isSubmitting,
+        error,
+        uploadedImages,
+        handleImageUpload,
+        removeImage,
+        handleSubmit,
+    } = useReturnOrder({
+        orderId,
+        onSuccess: () => {
             toast.success("Return request submitted successfully");
             onClose();
-        } catch (error) {
-            console.error("Error submitting return request:", error);
-            toast.error("Failed to submit return request");
-        }
-    };
-
-    const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files) {
-            const files = Array.from(event.target.files);
-            const imageUrls = files.map(file => URL.createObjectURL(file));
-            setUploadedImages(prev => [...prev, ...imageUrls]);
-            form.setValue("images", [...uploadedImages, ...imageUrls]);
-        }
-    };
+        },
+        onError: (error) => {
+            toast.error(error.message || "Failed to submit return request");
+        },
+    });
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -80,13 +65,18 @@ const ReturnOrderModal = ({ isOpen, onClose, orderId }: ReturnOrderModalProps) =
                     <DialogTitle className="text-lg">
                         Return Order #{orderId}
                     </DialogTitle>
-                    <Button variant="ghost" size="icon" onClick={onClose}>
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                    >
                         <X className="h-4 w-4" />
                     </Button>
                 </DialogHeader>
 
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                         <FormField
                             control={form.control}
                             name="returnReason"
@@ -95,18 +85,23 @@ const ReturnOrderModal = ({ isOpen, onClose, orderId }: ReturnOrderModalProps) =
                                     <FormLabel>
                                         Return Reason *
                                     </FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select 
+                                        onValueChange={field.onChange} 
+                                        defaultValue={field.value}
+                                        disabled={isSubmitting}
+                                    >
                                         <FormControl>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Select return reason" />
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                            {returnReasons.map((reason) => (
-                                                <SelectItem key={reason} value={reason}>
-                                                    {reason}
-                                                </SelectItem>
-                                            ))}
+                                            <SelectItem value="DAMAGED">Damaged Product</SelectItem>
+                                            <SelectItem value="WRONG_ITEM">Wrong Product Delivered</SelectItem>
+                                            <SelectItem value="NOT_AS_DESCRIBED">Product Not As Described</SelectItem>
+                                            <SelectItem value="MISSING_PARTS">Missing Parts/Accessories</SelectItem>
+                                            <SelectItem value="DEFECTIVE">Defective Product</SelectItem>
+                                            <SelectItem value="OTHER">Other</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     <FormMessage />
@@ -122,7 +117,11 @@ const ReturnOrderModal = ({ isOpen, onClose, orderId }: ReturnOrderModalProps) =
                                     <FormLabel>
                                         Return Type *
                                     </FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select 
+                                        onValueChange={field.onChange} 
+                                        defaultValue={field.value}
+                                        disabled={isSubmitting}
+                                    >
                                         <FormControl>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Select return type" />
@@ -151,6 +150,7 @@ const ReturnOrderModal = ({ isOpen, onClose, orderId }: ReturnOrderModalProps) =
                                             placeholder="Provide additional details about the return"
                                             className="resize-none"
                                             {...field}
+                                            disabled={isSubmitting}
                                         />
                                     </FormControl>
                                     <FormMessage />
@@ -176,6 +176,7 @@ const ReturnOrderModal = ({ isOpen, onClose, orderId }: ReturnOrderModalProps) =
                                         multiple
                                         className="hidden"
                                         onChange={handleImageUpload}
+                                        disabled={isSubmitting}
                                     />
                                 </label>
                             </div>
@@ -191,12 +192,8 @@ const ReturnOrderModal = ({ isOpen, onClose, orderId }: ReturnOrderModalProps) =
                                             <button
                                                 type="button"
                                                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
-                                                onClick={() => {
-                                                    const newImages = [...uploadedImages];
-                                                    newImages.splice(index, 1);
-                                                    setUploadedImages(newImages);
-                                                    form.setValue("images", newImages);
-                                                }}
+                                                onClick={() => removeImage(index)}
+                                                disabled={isSubmitting}
                                             >
                                                 <X className="h-3 w-3" />
                                             </button>
@@ -206,11 +203,18 @@ const ReturnOrderModal = ({ isOpen, onClose, orderId }: ReturnOrderModalProps) =
                             )}
                         </div>
 
+                        {error && (
+                            <p className="text-sm text-red-500">
+                                {error}
+                            </p>
+                        )}
+
                         <div className="flex justify-end gap-3 pt-4">
                             <Button
                                 type="button"
                                 variant="outline"
                                 onClick={onClose}
+                                disabled={isSubmitting}
                             >
                                 Cancel
                             </Button>
@@ -218,8 +222,16 @@ const ReturnOrderModal = ({ isOpen, onClose, orderId }: ReturnOrderModalProps) =
                                 type="submit"
                                 variant="default"
                                 className="bg-purple-600 hover:bg-purple-700 text-white"
+                                disabled={isSubmitting}
                             >
-                                Submit Return
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Submitting...
+                                    </>
+                                ) : (
+                                    'Submit Return'
+                                )}
                             </Button>
                         </div>
                     </form>

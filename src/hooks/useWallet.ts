@@ -1,107 +1,164 @@
-import { useState, useCallback, useEffect } from 'react';
-import { walletService, WalletBalance, WalletTransaction } from '@/services/wallet.service';
+import { useState, useEffect } from 'react';
+import { walletApi } from '@/services/api/wallet';
 import { toast } from 'sonner';
-import { ERROR_MESSAGES } from '@/utils/validation';
+
+export interface WalletBalance {
+    walletBalance: number;
+    remittanceBalance: number;
+    lastRecharge: number;
+}
+
+export interface Transaction {
+    transactionId: string;
+    type: 'Credit' | 'Debit';
+    amount: number;
+    balance: number;
+    date: string;
+    status: 'pending' | 'completed' | 'failed';
+    paymentMethod?: string;
+}
+
+interface UseWalletProps {
+    pageSize?: number;
+}
 
 interface UseWalletReturn {
     walletBalance: WalletBalance | null;
+    transactions: Transaction[];
     isLoadingBalance: boolean;
-    isRecharging: boolean;
-    transactions: WalletTransaction[];
     isLoadingTransactions: boolean;
+    isRecharging: boolean;
     hasMoreTransactions: boolean;
-    currentPage: number;
-    totalPages: number;
-    getWalletBalance: () => Promise<void>;
-    rechargeWallet: (params: { amount: number; paymentMethod: string }) => Promise<void>;
+    error: string | null;
+    rechargeWallet: (data: { amount: number; paymentMethod: string }) => Promise<void>;
     loadMoreTransactions: () => Promise<void>;
     refreshTransactions: () => Promise<void>;
 }
 
-export const useWallet = (): UseWalletReturn => {
+/**
+ * Custom hook for managing wallet functionality
+ * 
+ * This hook handles:
+ * - Wallet balance fetching
+ * - Transaction history with pagination
+ * - Wallet recharge
+ * - Loading and error states
+ * 
+ * @param {UseWalletProps} props - Hook configuration
+ * @returns {UseWalletReturn} Wallet state and methods
+ */
+export const useWallet = ({ pageSize = 10 }: UseWalletProps = {}): UseWalletReturn => {
     const [walletBalance, setWalletBalance] = useState<WalletBalance | null>(null);
-    const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [isLoadingBalance, setIsLoadingBalance] = useState(true);
+    const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
     const [isRecharging, setIsRecharging] = useState(false);
-    const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
-    const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
+    const [hasMoreTransactions, setHasMoreTransactions] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [page, setPage] = useState(1);
 
-    const getWalletBalance = useCallback(async () => {
+    /**
+     * Fetch wallet balance
+     */
+    const fetchBalance = async () => {
         try {
             setIsLoadingBalance(true);
-            const response = await walletService.getWalletBalance();
-            setWalletBalance(response.data);
-        } catch (error) {
-            console.error('Error fetching wallet balance:', error);
-            toast.error(error instanceof Error ? error.message : ERROR_MESSAGES.SERVER_ERROR);
+            setError(null);
+            const response = await walletApi.getBalance();
+            setWalletBalance(response);
+        } catch (err) {
+            const error = err as Error;
+            setError(error.message || 'Failed to fetch wallet balance');
+            toast.error('Failed to fetch wallet balance');
         } finally {
             setIsLoadingBalance(false);
         }
-    }, []);
+    };
 
-    const rechargeWallet = useCallback(async (params: { amount: number; paymentMethod: string }) => {
+    /**
+     * Fetch transactions with pagination
+     */
+    const fetchTransactions = async (isRefresh = false) => {
+        try {
+            setIsLoadingTransactions(true);
+            setError(null);
+            
+            const currentPage = isRefresh ? 1 : page;
+            const response = await walletApi.getTransactions({
+                page: currentPage,
+                pageSize,
+            });
+
+            if (isRefresh) {
+                setTransactions(response.transactions);
+                setPage(1);
+            } else {
+                setTransactions(prev => [...prev, ...response.transactions]);
+                setPage(currentPage + 1);
+            }
+
+            setHasMoreTransactions(response.hasMore);
+        } catch (err) {
+            const error = err as Error;
+            setError(error.message || 'Failed to fetch transactions');
+            toast.error('Failed to fetch transactions');
+        } finally {
+            setIsLoadingTransactions(false);
+        }
+    };
+
+    /**
+     * Recharge wallet
+     */
+    const rechargeWallet = async (data: { amount: number; paymentMethod: string }) => {
         try {
             setIsRecharging(true);
-            const response = await walletService.rechargeWallet(params);
-            setWalletBalance(response.data);
+            setError(null);
+            await walletApi.recharge(data);
+            await fetchBalance();
             toast.success('Wallet recharged successfully');
-        } catch (error) {
-            console.error('Error recharging wallet:', error);
-            toast.error(error instanceof Error ? error.message : ERROR_MESSAGES.SERVER_ERROR);
+        } catch (err) {
+            const error = err as Error;
+            setError(error.message || 'Failed to recharge wallet');
+            toast.error('Failed to recharge wallet');
             throw error;
         } finally {
             setIsRecharging(false);
         }
-    }, []);
+    };
 
-    const loadTransactions = useCallback(async (page: number = 1, isRefresh: boolean = false) => {
-        try {
-            setIsLoadingTransactions(true);
-            const response = await walletService.getWalletHistory(page);
-            const { transactions: newTransactions, totalPages: total, hasMore } = response.data;
-            
-            setTransactions(prev => isRefresh ? newTransactions : [...prev, ...newTransactions]);
-            setCurrentPage(page);
-            setTotalPages(total);
-            setHasMoreTransactions(hasMore);
-        } catch (error) {
-            console.error('Error fetching transactions:', error);
-            toast.error(error instanceof Error ? error.message : ERROR_MESSAGES.SERVER_ERROR);
-        } finally {
-            setIsLoadingTransactions(false);
-        }
-    }, []);
-
-    const loadMoreTransactions = useCallback(async () => {
+    /**
+     * Load more transactions
+     */
+    const loadMoreTransactions = async () => {
         if (!isLoadingTransactions && hasMoreTransactions) {
-            await loadTransactions(currentPage + 1);
+            await fetchTransactions();
         }
-    }, [currentPage, hasMoreTransactions, isLoadingTransactions, loadTransactions]);
+    };
 
-    const refreshTransactions = useCallback(async () => {
-        await loadTransactions(1, true);
-    }, [loadTransactions]);
+    /**
+     * Refresh transactions
+     */
+    const refreshTransactions = async () => {
+        await fetchTransactions(true);
+    };
 
-    // Initial load
+    // Fetch initial data
     useEffect(() => {
-        getWalletBalance();
-        loadTransactions(1, true);
-    }, [getWalletBalance, loadTransactions]);
+        fetchBalance();
+        fetchTransactions(true);
+    }, []);
 
     return {
         walletBalance,
-        isLoadingBalance,
-        isRecharging,
         transactions,
+        isLoadingBalance,
         isLoadingTransactions,
+        isRecharging,
         hasMoreTransactions,
-        currentPage,
-        totalPages,
-        getWalletBalance,
+        error,
         rechargeWallet,
         loadMoreTransactions,
-        refreshTransactions
+        refreshTransactions,
     };
 }; 

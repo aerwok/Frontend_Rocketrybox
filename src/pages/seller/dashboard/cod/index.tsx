@@ -1,317 +1,248 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import { ArrowUpDown, Building2, Download, Search } from "lucide-react";
-import { useState, useEffect } from "react";
-import axios from "axios";
-import { toast } from "sonner";
+import { useState } from 'react';
+import { useCODOrders, useCODOrderFilters } from '../../../../hooks/useCODOrders';
+import { Button } from '../../../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../../components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '../../../../components/ui/alert';
+import { Input } from '../../../../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../../components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../../components/ui/table';
+import { Loader2, Search, Filter, X } from 'lucide-react';
+import { format } from 'date-fns';
+import { CODOrderStatus } from '../../../../types/cod';
 
-interface RemittanceData {
-    remittanceId: string;
-    status: "Pending" | "Completed" | "Failed";
-    paymentDate: string;
-    remittanceAmount: string;
-    freightDeduction: string;
-    convenienceFee: string;
-    total: string;
-    paymentRef: string;
-}
-
-interface RemittanceSummary {
-    totalCOD: string;
-    remittedTillDate: string;
-    lastRemittance: string;
-    totalRemittanceDue: string;
-    nextRemittance: string;
-}
-
-// Fallback data in case API fails
-const fallbackRemittanceData: RemittanceData[] = [
-    {
-        remittanceId: "REM23785",
-        status: "Completed",
-        paymentDate: "2024-06-15",
-        remittanceAmount: "₹45,720.00",
-        freightDeduction: "₹1,371.60",
-        convenienceFee: "₹457.20",
-        total: "₹43,891.20",
-        paymentRef: "UTIB224536789"
-    },
-    // ... other fallback data items
-];
-
-const fallbackSummary: RemittanceSummary = {
-    totalCOD: "₹ 3,56,280.00",
-    remittedTillDate: "₹ 2,00,429.60",
-    lastRemittance: "₹ 43,891.20",
-    totalRemittanceDue: "₹ 1,15,420.80",
-    nextRemittance: "₹ 36,720.00"
-};
-
-const SellerCODPage = () => {
-    const [searchQuery, setSearchQuery] = useState<string>("");
-    const [remittanceData, setRemittanceData] = useState<RemittanceData[]>([]);
-    const [summary, setSummary] = useState<RemittanceSummary>(fallbackSummary);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null);
-    const [sortConfig, setSortConfig] = useState<{
-        key: keyof RemittanceData;
-        direction: 'asc' | 'desc';
-    } | null>(null);
-
-    useEffect(() => {
-        const fetchRemittanceData = async () => {
-            try {
-                setLoading(true);
-                
-                // Fetch summary data
-                const summaryResponse = await axios.get('/api/v2/seller/cod/summary', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                
-                if (summaryResponse.data && summaryResponse.data.data) {
-                    setSummary(summaryResponse.data.data);
-                }
-                
-                // Fetch remittance history
-                const historyResponse = await axios.get('/api/v2/seller/cod/remittance-history', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-                
-                if (historyResponse.data && historyResponse.data.data && historyResponse.data.data.remittances) {
-                    setRemittanceData(historyResponse.data.data.remittances);
-                }
-                
-                setError(null);
-            } catch (err) {
-                console.error('Error fetching COD data:', err);
-                setError('Failed to load COD remittance data. Using fallback data.');
-                toast.error('Failed to fetch remittance data. Showing sample data instead.');
-                
-                // Use fallback data if API fails
-                setRemittanceData(fallbackRemittanceData);
-            } finally {
-                setLoading(false);
-            }
-        };
-        
-        fetchRemittanceData();
-    }, []);
-
-    // Filter data based on search query
-    const filteredData = remittanceData.filter(item => {
-        if (!searchQuery.trim()) return true;
-        
-        const query = searchQuery.toLowerCase();
-        return (
-            item.remittanceId.toLowerCase().includes(query) ||
-            item.paymentRef.toLowerCase().includes(query)
-        );
-    });
-
-    // Sort the filtered data
-    const sortedData = [...filteredData].sort((a, b) => {
-        if (!sortConfig) return 0;
-
-        const { key, direction } = sortConfig;
-        if (a[key] < b[key]) return direction === 'asc' ? -1 : 1;
-        if (a[key] > b[key]) return direction === 'asc' ? 1 : -1;
-        return 0;
-    });
-
-    const handleSort = (key: keyof RemittanceData) => {
-        setSortConfig(current => ({
-            key,
-            direction: current?.key === key && current.direction === 'asc' ? 'desc' : 'asc',
-        }));
-    };
-
-    const handleDownloadRemittance = async (remittanceId: string) => {
-        try {
-            const response = await axios.get(`/api/v2/seller/cod/export`, {
-                params: { remittanceId, format: 'xlsx' },
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                responseType: 'blob'
-            });
-            
-            // Create a download link and trigger download
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `remittance-${remittanceId}.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch (err) {
-            console.error('Error downloading remittance details:', err);
-            toast.error('Failed to download remittance details');
-        }
-    };
-
-    const stats = [
-        { title: "Total COD", amount: summary.totalCOD },
-        { title: "Remitted till date", amount: summary.remittedTillDate },
-        { title: "Last Remittance", amount: summary.lastRemittance },
-        { title: "Total Remittance Due", amount: summary.totalRemittanceDue },
-        { title: "Next Remittance", amount: summary.nextRemittance },
-    ];
+/**
+ * COD Summary Component
+ * Displays summary statistics for COD orders
+ */
+const CODSummary = ({ summary }: { summary: any }) => {
+    if (!summary) return null;
 
     return (
-        <div className="space-y-8 overflow-hidden">
-            <h1 className="text-xl lg:text-2xl font-semibold">
-                COD Remittance
-            </h1>
+        <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{summary.total}</div>
+                    <p className="text-xs text-muted-foreground">
+                        Total COD orders
+                    </p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Pending</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{summary.pending}</div>
+                    <p className="text-xs text-muted-foreground">
+                        Orders pending delivery
+                    </p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Amount</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">₹{summary.totalAmount}</div>
+                    <p className="text-xs text-muted-foreground">
+                        Total COD amount
+                    </p>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Collected</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">₹{summary.collectedAmount}</div>
+                    <p className="text-xs text-muted-foreground">
+                        Amount collected
+                    </p>
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
 
-            <div className="space-y-4">
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    {stats.map((stat, index) => (
-                        <div key={index} className="bg-[#BCDDFF] p-4 rounded-lg">
-                            <div className="flex flex-col gap-2">
-                                <h3 className="text-sm font-medium">
-                                    {stat.title}
-                                </h3>
-                                <div className="flex items-center gap-2">
-                                    <Building2 className="size-5" />
-                                    <span className="text-lg font-semibold">
-                                        {stat.amount}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+/**
+ * COD Filters Component
+ * Handles filtering of COD orders
+ */
+const CODFilters = () => {
+    const { filters, setFilters, applyFilters, resetFilters } = useCODOrderFilters();
 
-                {/* Search and Filter */}
-                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 py-2">
-                    <div className="flex items-center gap-2 w-full">
-                        <div className="relative flex-1 px-px">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                            <Input
-                                placeholder="Search by Remittance ID or Payment Reference"
-                                className="pl-9 w-full bg-[#F8F7FF]"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                </div>
+    const handleSearch = (value: string) => {
+        setFilters({ ...filters, search: value });
+    };
 
-                {/* Loading/Error States */}
-                {loading && (
-                    <div className="text-center py-8">
-                        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-                        <p>Loading remittance data...</p>
-                    </div>
-                )}
+    const handleStatusChange = (value: string) => {
+        setFilters({ ...filters, status: value as CODOrderStatus });
+    };
 
-                {error && !loading && (
-                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded p-4 mb-4">
-                        {error}
-                    </div>
-                )}
-
-                {/* Table with Overflow Handling */}
-                {!loading && (
-                    <div className="w-[calc(100vw-4rem)] lg:w-full -mr-4 lg:mr-0">
-                        <div className="w-full overflow-x-auto">
-                            <Table>
-                                <TableHeader className="bg-[#F4F2FF] h-12">
-                                    <TableRow className="hover:bg-[#F4F2FF]">
-                                        <TableHead onClick={() => handleSort('remittanceId')} className="cursor-pointer text-black min-w-[150px] whitespace-nowrap">
-                                            Remittance ID <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                                        </TableHead>
-                                        <TableHead onClick={() => handleSort('status')} className="cursor-pointer text-black min-w-[120px] whitespace-nowrap">
-                                            Status <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                                        </TableHead>
-                                        <TableHead onClick={() => handleSort('paymentDate')} className="cursor-pointer text-black min-w-[150px] whitespace-nowrap">
-                                            Payment Date <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                                        </TableHead>
-                                        <TableHead onClick={() => handleSort('remittanceAmount')} className="cursor-pointer text-black min-w-[180px] whitespace-nowrap">
-                                            Remittance Amount <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                                        </TableHead>
-                                        <TableHead onClick={() => handleSort('freightDeduction')} className="cursor-pointer text-black min-w-[180px] whitespace-nowrap">
-                                            Freight Deduction <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                                        </TableHead>
-                                        <TableHead onClick={() => handleSort('convenienceFee')} className="cursor-pointer text-black min-w-[180px] whitespace-nowrap">
-                                            Convenience Fee <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                                        </TableHead>
-                                        <TableHead onClick={() => handleSort('total')} className="cursor-pointer text-black min-w-[120px] whitespace-nowrap">
-                                            Total <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                                        </TableHead>
-                                        <TableHead onClick={() => handleSort('paymentRef')} className="cursor-pointer text-black min-w-[150px] whitespace-nowrap">
-                                            Payment Ref <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                                        </TableHead>
-                                        <TableHead className="text-black min-w-[100px] whitespace-nowrap">
-                                            Download
-                                        </TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {sortedData.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={9} className="text-center py-8 text-gray-500">
-                                                No remittance records found
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        sortedData.map((row, index) => (
-                                            <TableRow key={index} className="h-12">
-                                                <TableCell className="font-medium">
-                                                    {row.remittanceId}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${row.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                                                        row.status === 'Failed' ? 'bg-red-100 text-red-800' :
-                                                            'bg-yellow-100 text-yellow-800'
-                                                        }`}>
-                                                        <div className={`size-1.5 mr-1 rounded-full ${row.status === 'Completed' ? 'bg-green-500' :
-                                                            row.status === 'Failed' ? 'bg-red-500' :
-                                                                'bg-yellow-500'
-                                                            }`} />
-                                                        {row.status}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell>{row.paymentDate}</TableCell>
-                                                <TableCell>{row.remittanceAmount}</TableCell>
-                                                <TableCell>{row.freightDeduction}</TableCell>
-                                                <TableCell>{row.convenienceFee}</TableCell>
-                                                <TableCell className="font-medium">{row.total}</TableCell>
-                                                <TableCell>{row.paymentRef}</TableCell>
-                                                <TableCell>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8"
-                                                        onClick={() => handleDownloadRemittance(row.remittanceId)}
-                                                    >
-                                                        <Download className="h-4 w-4" />
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </div>
-                )}
+    return (
+        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            <div className="flex-1">
+                <Input
+                    placeholder="Search orders..."
+                    value={filters.search || ''}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    className="max-w-sm"
+                />
+            </div>
+            <div className="flex items-center gap-2">
+                <Select
+                    value={filters.status}
+                    onValueChange={handleStatusChange}
+                >
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="">All Status</SelectItem>
+                        {Object.values(CODOrderStatus).map((status) => (
+                            <SelectItem key={status} value={status}>
+                                {status.replace(/_/g, ' ').toLowerCase()}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={applyFilters}
+                >
+                    <Filter className="h-4 w-4" />
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetFilters}
+                >
+                    <X className="h-4 w-4" />
+                </Button>
             </div>
         </div>
     );
 };
 
-export default SellerCODPage; 
+/**
+ * COD Orders Table Component
+ * Displays list of COD orders
+ */
+const CODOrdersTable = () => {
+    const { orders, isLoading, error, cancelCODOrder } = useCODOrders();
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        );
+    }
+
+    if (orders.length === 0) {
+        return (
+            <Alert>
+                <AlertTitle>No Orders</AlertTitle>
+                <AlertDescription>No COD orders found</AlertDescription>
+            </Alert>
+        );
+    }
+
+    return (
+        <div className="rounded-md border">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Delivery Date</TableHead>
+                        <TableHead>Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {orders.map((order) => (
+                        <TableRow key={order.id}>
+                            <TableCell>{order.orderId}</TableCell>
+                            <TableCell>
+                                <div>
+                                    <div className="font-medium">{order.customerName}</div>
+                                    <div className="text-sm text-gray-500">{order.customerPhone}</div>
+                                </div>
+                            </TableCell>
+                            <TableCell>₹{order.amount}</TableCell>
+                            <TableCell>
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                    order.status === CODOrderStatus.DELIVERED ? 'bg-green-100 text-green-800' :
+                                    order.status === CODOrderStatus.FAILED ? 'bg-red-100 text-red-800' :
+                                    order.status === CODOrderStatus.CANCELLED ? 'bg-gray-100 text-gray-800' :
+                                    'bg-blue-100 text-blue-800'
+                                }`}>
+                                    {order.status.replace(/_/g, ' ').toLowerCase()}
+                                </span>
+                            </TableCell>
+                            <TableCell>
+                                {order.deliveryDate ? format(new Date(order.deliveryDate), 'PPP') : '-'}
+                            </TableCell>
+                            <TableCell>
+                                {order.status === CODOrderStatus.PENDING && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => cancelCODOrder(order.id)}
+                                    >
+                                        Cancel
+                                    </Button>
+                                )}
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </div>
+    );
+};
+
+/**
+ * COD Page Component
+ * Main component for the COD dashboard
+ */
+export default function CODPage() {
+    const { summary } = useCODOrders();
+
+    return (
+        <div className="container mx-auto py-8">
+            <div className="flex items-center justify-between mb-8">
+                <h1 className="text-3xl font-bold">Cash on Delivery</h1>
+            </div>
+
+            <div className="space-y-8">
+                <CODSummary summary={summary} />
+                <Card>
+                    <CardHeader>
+                        <CardTitle>COD Orders</CardTitle>
+                        <CardDescription>Manage your cash on delivery orders</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <CODFilters />
+                        <CODOrdersTable />
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+} 

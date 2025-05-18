@@ -3,26 +3,70 @@ import { Menu, MenuIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSidebarStore } from '@/store/use-sidebar-store';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useNavLinks } from '@/hooks/useNavLinks';
+import { Skeleton } from '@/components/ui/skeleton';
 
+/**
+ * AdminNavbar Component
+ * 
+ * A responsive navigation bar for the admin dashboard that includes:
+ * - Logo
+ * - Sidebar toggle button
+ * - Mobile menu with navigation links
+ * - Loading and error states
+ */
 const AdminNavbar = () => {
-
     const { pathname } = useLocation();
-
     const isAuthPage = pathname.includes('/admin/auth/login') || pathname.includes('/admin/auth/register');
     const toggleSidebar = useSidebarStore((state) => state.toggleSidebar);
-
-    const navLinks = [
-        { to: "/admin/dashboard", label: "Dashboard" },
-        { to: "/admin/dashboard/users", label: "Users" },
-        { to: "/admin/dashboard/partners", label: "Partners" },
-        { to: "/admin/dashboard/orders", label: "Orders" },
-        { to: "/admin/dashboard/reports", label: "Reports" },
-        { to: "/admin/dashboard/settings", label: "Settings" },
-    ];
+    const { navLinks, loading, error } = useNavLinks();
 
     const handleLinkClick = () => {
         toggleSidebar();
     };
+
+    // Render loading skeleton when data is being fetched
+    if (loading) {
+        return (
+            <header className="fixed top-0 left-0 right-0 border-b border-border z-50 bg-white h-16">
+                <div className="px-4 h-full">
+                    <div className="flex items-center justify-between h-full">
+                        <div className="flex items-center gap-x-4">
+                            <Skeleton className="h-10 w-32" />
+                            {!isAuthPage && pathname.includes('/admin/dashboard') && (
+                                <Skeleton className="h-10 w-10 rounded-lg" />
+                            )}
+                        </div>
+                        {!isAuthPage && (
+                            <Skeleton className="h-10 w-10 rounded-lg lg:hidden" />
+                        )}
+                    </div>
+                </div>
+            </header>
+        );
+    }
+
+    // Render error state
+    if (error) {
+        return (
+            <header className="fixed top-0 left-0 right-0 border-b border-border z-50 bg-white h-16">
+                <div className="px-4 h-full">
+                    <div className="flex items-center justify-between h-full">
+                        <div className="flex items-center gap-x-4">
+                            <Link to="/admin/dashboard" className="flex items-center">
+                                <img
+                                    src="/icons/logo.svg"
+                                    alt="Rocketry Box"
+                                    className="h-10"
+                                />
+                            </Link>
+                        </div>
+                        <p className="text-red-500 text-sm">Failed to load navigation</p>
+                    </div>
+                </div>
+            </header>
+        );
+    }
 
     return (
         <header className="fixed top-0 left-0 right-0 border-b border-border z-50 bg-white h-16">
