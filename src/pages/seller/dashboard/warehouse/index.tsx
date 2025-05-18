@@ -1,347 +1,176 @@
-import { Button } from "@/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Search, Plus, Package, Boxes, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Link } from "react-router-dom";
+import { useState } from 'react';
+import { useWarehouses, useWarehouseStats } from '@/hooks/useWarehouses';
+import { WarehouseStatus } from '@/types/warehouse';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
+import { formatDate } from '@/lib/utils';
 
-interface WarehouseItem {
-    id: string;
-    name: string;
-    sku: string;
-    quantity: number;
-    location: string;
-    status: "In Stock" | "Low Stock" | "Out of Stock";
-    lastUpdated: string;
-}
+/**
+ * Warehouse Page Component
+ * Displays a list of warehouses with filtering and search capabilities
+ */
+export default function WarehousePage() {
+  const { warehouses, loading, error, filters, updateFilters } = useWarehouses();
+  const { stats, loading: statsLoading } = useWarehouseStats();
+  const [searchQuery, setSearchQuery] = useState('');
 
-const mockWarehouseItems: WarehouseItem[] = [
-    {
-        id: "1",
-        name: "Premium Laptop",
-        sku: "LAP001",
-        quantity: 50,
-        location: "A-123",
-        status: "In Stock",
-        lastUpdated: "2024-03-25"
-    },
-    {
-        id: "2",
-        name: "Wireless Mouse",
-        sku: "MOU001",
-        quantity: 5,
-        location: "B-456",
-        status: "Low Stock",
-        lastUpdated: "2024-03-25"
-    },
-    {
-        id: "3",
-        name: "Mechanical Keyboard",
-        sku: "KEY001",
-        quantity: 0,
-        location: "C-789",
-        status: "Out of Stock",
-        lastUpdated: "2024-03-24"
-    },
-    {
-        id: "4",
-        name: "4K Monitor",
-        sku: "MON001",
-        quantity: 20,
-        location: "D-012",
-        status: "In Stock",
-        lastUpdated: "2024-03-23"
-    },
-    {
-        id: "5",
-        name: "USB-C Hub",
-        sku: "HUB001",
-        quantity: 75,
-        location: "E-345",
-        status: "In Stock",
-        lastUpdated: "2024-03-22"
-    }
-];
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateFilters({ search: searchQuery });
+  };
 
-const SellerWarehousePage = () => {
-    const [searchQuery, setSearchQuery] = useState("");
-    const [sortConfig, setSortConfig] = useState<{
-        key: keyof WarehouseItem;
-        direction: "asc" | "desc";
-    } | null>(null);
+  const handleStatusChange = (status: WarehouseStatus | '') => {
+    updateFilters({ status: status || undefined });
+  };
 
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchQuery(e.target.value);
-    };
+  const handleCountryChange = (country: string) => {
+    updateFilters({ country: country || undefined });
+  };
 
-    const handleSort = (key: keyof WarehouseItem) => {
-        setSortConfig(current => ({
-            key,
-            direction: current?.key === key && current.direction === "asc" ? "desc" : "asc",
-        }));
-    };
+  const handleStateChange = (state: string) => {
+    updateFilters({ state: state || undefined });
+  };
 
-    const handleAddStock = (itemId: string) => {
-        console.log("Add stock for item:", itemId);
-        toast.info("Add stock functionality coming soon!");
-    };
-
-    const handleTransfer = (itemId: string) => {
-        console.log("Transfer item:", itemId);
-        toast.info("Transfer functionality coming soon!");
-    };
-
-    const filteredItems = mockWarehouseItems.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.location.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    const sortedItems = [...filteredItems].sort((a, b) => {
-        if (!sortConfig) return 0;
-        const { key, direction } = sortConfig;
-        if (a[key] < b[key]) return direction === "asc" ? -1 : 1;
-        if (a[key] > b[key]) return direction === "asc" ? 1 : -1;
-        return 0;
-    });
-
-    const getStatusColor = (status: WarehouseItem["status"]) => {
-        switch (status) {
-            case "In Stock":
-                return "bg-green-100 text-green-800";
-            case "Low Stock":
-                return "bg-yellow-100 text-yellow-800";
-            case "Out of Stock":
-                return "bg-red-100 text-red-800";
-        }
-    };
-
-    const getStatusIcon = (status: WarehouseItem["status"]) => {
-        switch (status) {
-            case "In Stock":
-                return <CheckCircle2 className="size-4" />;
-            case "Low Stock":
-                return <AlertTriangle className="size-4" />;
-            case "Out of Stock":
-                return <Boxes className="size-4" />;
-        }
-    };
-
+  if (loading || statsLoading) {
     return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <h1 className="text-xl lg:text-2xl font-semibold">
-                    Warehouse
-                </h1>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <Package className="size-4" />
-                    <span>Manage your inventory</span>
-                </div>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Total Items
-                        </CardTitle>
-                        <Package className="size-4 text-gray-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{mockWarehouseItems.length}</div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Low Stock Items
-                        </CardTitle>
-                        <AlertTriangle className="size-4 text-yellow-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {mockWarehouseItems.filter(item => item.status === "Low Stock").length}
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">
-                            Out of Stock Items
-                        </CardTitle>
-                        <Boxes className="size-4 text-red-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {mockWarehouseItems.filter(item => item.status === "Out of Stock").length}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="space-y-4">
-                {/* Search and Actions */}
-                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 w-full lg:w-auto">
-                        <div className="relative flex-1 lg:w-[300px]">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                            <Input
-                                placeholder="Search inventory..."
-                                className="pl-9"
-                                value={searchQuery}
-                                onChange={handleSearch}
-                            />
-                        </div>
-                    </div>
-                    <Button className="w-full lg:w-auto" asChild>
-                        <Link to="/seller/dashboard/new-order">
-                        <Plus className="size-4 mr-2" />
-                        Add New Item
-                        </Link>
-                    </Button>
-                </div>
-
-                {/* Inventory Table */}
-                <div className="rounded-lg border">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("name")}
-                                >
-                                    Item Name
-                                    {sortConfig?.key === "name" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("sku")}
-                                >
-                                    SKU
-                                    {sortConfig?.key === "sku" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("quantity")}
-                                >
-                                    Quantity
-                                    {sortConfig?.key === "quantity" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("location")}
-                                >
-                                    Location
-                                    {sortConfig?.key === "location" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("status")}
-                                >
-                                    Status
-                                    {sortConfig?.key === "status" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead
-                                    className="cursor-pointer"
-                                    onClick={() => handleSort("lastUpdated")}
-                                >
-                                    Last Updated
-                                    {sortConfig?.key === "lastUpdated" && (
-                                        <span className="ml-1">
-                                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                                        </span>
-                                    )}
-                                </TableHead>
-                                <TableHead>Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {sortedItems.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                                        No items found
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                sortedItems.map((item) => (
-                                    <TableRow key={item.id}>
-                                        <TableCell className="font-medium">{item.name}</TableCell>
-                                        <TableCell>{item.sku}</TableCell>
-                                        <TableCell>{item.quantity}</TableCell>
-                                        <TableCell>{item.location}</TableCell>
-                                        <TableCell>
-                                            <span
-                                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                                                    item.status
-                                                )}`}
-                                            >
-                                                {getStatusIcon(item.status)}
-                                                {item.status}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>{item.lastUpdated}</TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleAddStock(item.id)}
-                                                >
-                                                    Add Stock
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleTransfer(item.id)}
-                                                >
-                                                    Transfer
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <Spinner size="lg" />
+      </div>
     );
-};
+  }
 
-export default SellerWarehousePage; 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <p className="text-red-500 mb-4">{error}</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-8">Warehouses</h1>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <Card className="p-4">
+          <h3 className="text-sm font-medium text-gray-500">Total Warehouses</h3>
+          <p className="text-2xl font-bold">{stats?.total || 0}</p>
+        </Card>
+        <Card className="p-4">
+          <h3 className="text-sm font-medium text-gray-500">Active Warehouses</h3>
+          <p className="text-2xl font-bold">{stats?.byStatus?.active || 0}</p>
+        </Card>
+        <Card className="p-4">
+          <h3 className="text-sm font-medium text-gray-500">Total Capacity</h3>
+          <p className="text-2xl font-bold">{stats?.totalCapacity || 0}</p>
+        </Card>
+        <Card className="p-4">
+          <h3 className="text-sm font-medium text-gray-500">Used Capacity</h3>
+          <p className="text-2xl font-bold">{stats?.usedCapacity || 0}</p>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-4 mb-8">
+        <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
+          <Input
+            type="text"
+            placeholder="Search warehouses..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1"
+          />
+          <Select
+            value={filters.status || ''}
+            onChange={(e) => handleStatusChange(e.target.value as WarehouseStatus)}
+            className="w-full md:w-40"
+          >
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="maintenance">Maintenance</option>
+          </Select>
+          <Select
+            value={filters.country || ''}
+            onChange={(e) => handleCountryChange(e.target.value)}
+            className="w-full md:w-40"
+          >
+            <option value="">All Countries</option>
+            <option value="US">United States</option>
+            <option value="CA">Canada</option>
+            <option value="UK">United Kingdom</option>
+          </Select>
+          <Select
+            value={filters.state || ''}
+            onChange={(e) => handleStateChange(e.target.value)}
+            className="w-full md:w-40"
+          >
+            <option value="">All States</option>
+            <option value="CA">California</option>
+            <option value="NY">New York</option>
+            <option value="TX">Texas</option>
+          </Select>
+          <Button type="submit">Search</Button>
+        </form>
+      </div>
+
+      {/* Warehouses Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {warehouses.map((warehouse) => (
+          <Card key={warehouse.id} className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-semibold">{warehouse.name}</h3>
+                <p className="text-sm text-gray-500">
+                  {warehouse.address.city}, {warehouse.address.state}
+                </p>
+              </div>
+              <Badge
+                className={
+                  warehouse.status === 'active'
+                    ? 'bg-green-100 text-green-800'
+                    : warehouse.status === 'maintenance'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-red-100 text-red-800'
+                }
+              >
+                {warehouse.status}
+              </Badge>
+            </div>
+            <div className="space-y-2 mb-4">
+              <p className="text-sm">
+                <span className="font-medium">Capacity:</span>{' '}
+                {warehouse.capacity.used} / {warehouse.capacity.total}
+              </p>
+              <p className="text-sm">
+                <span className="font-medium">Contact:</span>{' '}
+                {warehouse.contact.name}
+              </p>
+              <p className="text-sm">
+                <span className="font-medium">Hours:</span>{' '}
+                {warehouse.operatingHours.open} - {warehouse.operatingHours.close}
+              </p>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">
+                Added {formatDate(warehouse.createdAt)}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => window.location.href = `/seller/dashboard/warehouse/${warehouse.id}`}
+              >
+                View Details
+              </Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+} 

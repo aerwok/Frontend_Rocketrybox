@@ -1,223 +1,155 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { ordersApi } from '../services/api/orders';
+import { orderApi } from '@/services/api/order';
+import { Order, OrderFilters, OrderResponse } from '@/types/order';
 
 /**
- * Hook for managing a list of orders
- * Handles fetching, filtering, and pagination of orders
+ * Hook for managing orders list with pagination and filters
  */
-export function useOrders() {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+export const useOrders = (initialFilters?: OrderFilters) => {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
-  const [totalPages, setTotalPages] = useState(0);
+  const [filters, setFilters] = useState<OrderFilters>({
+    page: 1,
+    limit: 10,
+    ...initialFilters,
+  });
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 1,
+  });
 
-  const fetchOrders = useCallback(async (params?: {
-    page?: number;
-    limit?: number;
-    status?: string;
-    search?: string;
-    startDate?: string;
-    endDate?: string;
-  }) => {
-    setIsLoading(true);
-    setError(null);
-
+  const fetchOrders = async () => {
     try {
-      const response = await ordersApi.getOrders(params);
-      setOrders(response.data);
-      setTotal(response.total);
-      setPage(response.page);
-      setLimit(response.limit);
-      setTotalPages(response.totalPages);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch orders');
+      setLoading(true);
+      setError(null);
+      const response = await orderApi.getOrders(filters);
+      setOrders(response.orders);
+      setPagination({
+        total: response.total,
+        page: response.page,
+        limit: response.limit,
+        totalPages: response.totalPages,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch orders');
       toast.error('Failed to fetch orders');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, []);
-
-  const refreshOrders = useCallback(() => {
-    fetchOrders({ page, limit });
-  }, [fetchOrders, page, limit]);
+  };
 
   useEffect(() => {
-    fetchOrders({ page, limit });
-  }, [fetchOrders, page, limit]);
+    fetchOrders();
+  }, [filters]);
+
+  const updateFilters = (newFilters: Partial<OrderFilters>) => {
+    setFilters(prev => ({ ...prev, ...newFilters, page: 1 }));
+  };
 
   return {
     orders,
-    isLoading,
+    loading,
     error,
-    total,
-    page,
-    limit,
-    totalPages,
-    setPage,
-    setLimit,
-    fetchOrders,
-    refreshOrders
+    filters,
+    pagination,
+    updateFilters,
+    refetch: fetchOrders,
   };
-}
+};
 
 /**
  * Hook for managing a single order
- * Handles fetching, updating, and cancelling an order
  */
-export function useOrder(orderId: string | null) {
-  const [order, setOrder] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
+export const useOrder = (orderId: string) => {
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchOrder = useCallback(async () => {
-    if (!orderId) return;
-    
-    setIsLoading(true);
-    setError(null);
-
+  const fetchOrder = async () => {
     try {
-      const response = await ordersApi.getOrderById(orderId);
-      setOrder(response.data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch order');
+      setLoading(true);
+      setError(null);
+      const data = await orderApi.getOrder(orderId);
+      setOrder(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch order');
       toast.error('Failed to fetch order details');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [orderId]);
+  };
 
-  const updateOrder = useCallback(async (data: any) => {
-    if (!orderId) return;
-
-    setIsLoading(true);
-    setError(null);
-
+  const updateStatus = async (status: Order['status']) => {
     try {
-      const response = await ordersApi.updateOrder(orderId, data);
-      setOrder(response.data);
-      toast.success('Order updated successfully');
-      return response.data;
-    } catch (err: any) {
-      setError(err.message || 'Failed to update order');
-      toast.error('Failed to update order');
-      throw err;
+      setLoading(true);
+      setError(null);
+      const updatedOrder = await orderApi.updateOrderStatus(orderId, status);
+      setOrder(updatedOrder);
+      toast.success('Order status updated successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update order status');
+      toast.error('Failed to update order status');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [orderId]);
-
-  const cancelOrder = useCallback(async (reason?: string) => {
-    if (!orderId) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await ordersApi.cancelOrder(orderId, reason);
-      setOrder(response.data);
-      toast.success('Order cancelled successfully');
-      return response.data;
-    } catch (err: any) {
-      setError(err.message || 'Failed to cancel order');
-      toast.error('Failed to cancel order');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [orderId]);
-
-  const generateShippingLabel = useCallback(async () => {
-    if (!orderId) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await ordersApi.generateShippingLabel(orderId);
-      toast.success('Shipping label generated successfully');
-      return response.data;
-    } catch (err: any) {
-      setError(err.message || 'Failed to generate shipping label');
-      toast.error('Failed to generate shipping label');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [orderId]);
-
-  const trackOrder = useCallback(async () => {
-    if (!orderId) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await ordersApi.trackOrder(orderId);
-      return response.data;
-    } catch (err: any) {
-      setError(err.message || 'Failed to track order');
-      toast.error('Failed to track order');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [orderId]);
+  };
 
   useEffect(() => {
     if (orderId) {
       fetchOrder();
     }
-  }, [orderId, fetchOrder]);
+  }, [orderId]);
 
   return {
     order,
-    isLoading,
+    loading,
     error,
-    fetchOrder,
-    updateOrder,
-    cancelOrder,
-    generateShippingLabel,
-    trackOrder
+    updateStatus,
+    refetch: fetchOrder,
   };
-}
+};
 
 /**
- * Hook for managing order filters
- * Handles filter state and application
+ * Hook for managing order statistics
  */
-export function useOrderFilters() {
-  const [filters, setFilters] = useState({
-    status: '',
-    search: '',
-    startDate: '',
-    endDate: '',
-    page: 1,
-    limit: 10
+export const useOrderStats = () => {
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    processing: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0,
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const applyFilters = useCallback((newFilters: Partial<typeof filters>) => {
-    setFilters(prev => ({ ...prev, ...newFilters, page: 1 }));
-  }, []);
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await orderApi.getOrderStats();
+      setStats(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch order statistics');
+      toast.error('Failed to fetch order statistics');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const resetFilters = useCallback(() => {
-    setFilters({
-      status: '',
-      search: '',
-      startDate: '',
-      endDate: '',
-      page: 1,
-      limit: 10
-    });
+  useEffect(() => {
+    fetchStats();
   }, []);
 
   return {
-    filters,
-    setFilters,
-    applyFilters,
-    resetFilters
+    stats,
+    loading,
+    error,
+    refetch: fetchStats,
   };
-} 
+}; 

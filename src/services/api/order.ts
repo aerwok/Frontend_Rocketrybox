@@ -1,5 +1,7 @@
-import api from './index';
-import { ApiResponse } from '@/types/api';
+import axios from 'axios';
+import { Order, OrderFilters, OrderResponse } from '@/types/order';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
 
 export interface OrderItem {
     id: string;
@@ -70,36 +72,52 @@ export interface CreateOrderData {
  */
 export const orderApi = {
     /**
+     * Get all orders with optional filters
+     * @param filters OrderFilters
+     * @returns Promise<OrderResponse>
+     */
+    getOrders: async (filters?: OrderFilters): Promise<OrderResponse> => {
+        const response = await axios.get(`${API_URL}/orders`, { params: filters });
+        return response.data;
+    },
+
+    /**
+     * Get a single order by ID
+     * @param orderId string
+     * @returns Promise<Order>
+     */
+    getOrder: async (orderId: string): Promise<Order> => {
+        const response = await axios.get(`${API_URL}/orders/${orderId}`);
+        return response.data;
+    },
+
+    /**
+     * Update order status
+     * @param orderId string
+     * @param status OrderStatus
+     * @returns Promise<Order>
+     */
+    updateOrderStatus: async (orderId: string, status: Order['status']): Promise<Order> => {
+        const response = await axios.patch(`${API_URL}/orders/${orderId}/status`, { status });
+        return response.data;
+    },
+
+    /**
+     * Get order statistics
+     * @returns Promise<{ total: number; pending: number; processing: number; shipped: number; delivered: number; cancelled: number }>
+     */
+    getOrderStats: async () => {
+        const response = await axios.get(`${API_URL}/orders/stats`);
+        return response.data;
+    },
+
+    /**
      * Create a new order
      * @param {CreateOrderData} data - Order creation data
      * @returns {Promise<ApiResponse<Order>>} Created order
      */
     createOrder: (data: CreateOrderData): Promise<ApiResponse<Order>> => {
-        return api.post('/customer/orders', data);
-    },
-
-    /**
-     * Get order details
-     * @param {string} orderId - Order ID
-     * @returns {Promise<ApiResponse<Order>>} Order details
-     */
-    getOrder: (orderId: string): Promise<ApiResponse<Order>> => {
-        return api.get(`/customer/orders/${orderId}`);
-    },
-
-    /**
-     * Get customer's orders
-     * @param {number} page - Page number
-     * @param {number} limit - Items per page
-     * @returns {Promise<ApiResponse<{ items: Order[]; total: number }>>} List of orders
-     */
-    getOrders: (
-        page: number = 1,
-        limit: number = 10
-    ): Promise<ApiResponse<{ items: Order[]; total: number }>> => {
-        return api.get('/customer/orders', {
-            params: { page, limit },
-        });
+        return axios.post(`${API_URL}/customer/orders`, data);
     },
 
     /**
@@ -108,7 +126,7 @@ export const orderApi = {
      * @returns {Promise<ApiResponse<Order>>} Updated order
      */
     cancelOrder: (orderId: string): Promise<ApiResponse<Order>> => {
-        return api.post(`/customer/orders/${orderId}/cancel`);
+        return axios.post(`${API_URL}/customer/orders/${orderId}/cancel`);
     },
 
     /**
@@ -117,7 +135,7 @@ export const orderApi = {
      * @returns {Promise<ApiResponse<{ status: OrderStatus }>>} Order status
      */
     getOrderStatus: (orderId: string): Promise<ApiResponse<{ status: OrderStatus }>> => {
-        return api.get(`/customer/orders/${orderId}/status`);
+        return axios.get(`${API_URL}/customer/orders/${orderId}/status`);
     },
 
     /**
@@ -126,7 +144,7 @@ export const orderApi = {
      * @returns {Promise<ApiResponse<{ status: PaymentStatus }>>} Payment status
      */
     getOrderPaymentStatus: (orderId: string): Promise<ApiResponse<{ status: PaymentStatus }>> => {
-        return api.get(`/customer/orders/${orderId}/payment-status`);
+        return axios.get(`${API_URL}/customer/orders/${orderId}/payment-status`);
     },
 
     /**
@@ -137,6 +155,6 @@ export const orderApi = {
     calculateOrderTotals: (
         data: CreateOrderData
     ): Promise<ApiResponse<{ subtotal: number; tax: number; platformFee: number; total: number }>> => {
-        return api.post('/customer/orders/calculate-totals', data);
+        return axios.post(`${API_URL}/customer/orders/calculate-totals`, data);
     },
 }; 

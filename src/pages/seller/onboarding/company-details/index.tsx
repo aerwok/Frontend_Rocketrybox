@@ -1,410 +1,326 @@
-import UploadModal from "@/components/shared/upload-modal";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import { sellerCompanySchema, type SellerCompanyInput } from "@/lib/validations/seller";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, Upload } from "lucide-react";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useCompanyDetails } from '@/hooks/useOnboarding';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
+import { toast } from 'sonner';
+import type { CompanyDetails } from '@/types/onboarding';
 
-const features = [
-    "Branded Order Tracking Page",
-    "Automated NDR Management",
-    "Up To 45% Lesser RTOs",
-];
+/**
+ * Company Details Page Component
+ * Handles company information collection during seller onboarding
+ */
+export default function CompanyDetailsPage() {
+  const navigate = useNavigate();
+  const { details, loading, error, updateDetails, uploadDocuments } = useCompanyDetails();
+  const [formData, setFormData] = useState<Partial<CompanyDetails>>({
+    name: '',
+    registrationNumber: '',
+    taxId: '',
+    businessType: 'individual',
+    industry: '',
+    website: '',
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      country: '',
+      zipCode: '',
+    },
+    contactPerson: {
+      name: '',
+      email: '',
+      phone: '',
+      position: '',
+    },
+  });
 
-const SellerCompanyDetailsPage = () => {
+  // Update form data when details are loaded
+  useEffect(() => {
+    if (details) {
+      setFormData({
+        name: details.name,
+        registrationNumber: details.registrationNumber,
+        taxId: details.taxId,
+        businessType: details.businessType,
+        industry: details.industry,
+        website: details.website || '',
+        address: { ...details.address },
+        contactPerson: { ...details.contactPerson },
+      });
+    }
+  }, [details]);
 
-    const [uploadType, setUploadType] = useState<"gst" | "pan" | "aadhaar" | null>(null);
-    const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
-    const navigate = useNavigate();
-
-    const form = useForm<SellerCompanyInput>({
-        resolver: zodResolver(sellerCompanySchema),
-        defaultValues: {
-            category: "",
-            gstNumber: "",
-            panNumber: "",
-            aadhaarNumber: "",
-            monthlyShipments: "",
-            address1: "",
-            address2: "",
-            city: "",
-            state: "",
-            pincode: "",
-            acceptTerms: false,
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (name.includes('.')) {
+      const [parent, child] = name.split('.');
+      setFormData(prev => ({
+        ...prev,
+        [parent]: {
+          ...(prev[parent as keyof typeof prev] as Record<string, string>),
+          [child]: value,
         },
-    });
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
 
-    const onSubmit = (data: SellerCompanyInput) => {
-        try {
-            console.log(data);
-            // TODO: Implement API call to save company details
-            navigate("/seller/onboarding/bank");
-        } catch (error) {
-            console.error("Error submitting company details:", error);
-            toast.error("Failed to save company details. Please try again.");
-        }
-    };
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
-    const handleUpload = (file: File) => {
-        console.log("Uploaded file:", file);
-        // Handle file upload logic here
-    };
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+    const files = e.target.files;
+    if (!files?.length) return;
 
+    try {
+      await uploadDocuments(Array.from(files), type as any);
+    } catch (err) {
+      console.error('Error uploading file:', err);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateDetails(formData);
+      toast.success('Company details updated successfully');
+      navigate('/seller/onboarding/bank-details');
+    } catch (err) {
+      console.error('Error updating company details:', err);
+    }
+  };
+
+  if (loading) {
     return (
-        <div className="h-[calc(100dvh-4rem)] bg-white">
-            <div className="container mx-auto p-4 h-full">
-                <div className="grid lg:grid-cols-2 gap-12 place-items-center w-full h-full">
-                    {/* Left Side */}
-                    <div className="space-y-6 order-2 lg:order-1 flex flex-col justify-start w-full h-full">
-                        <div className="space-y-4">
-                            <h1 className="text-2xl lg:text-3xl font-semibold text-[#2B4EA8] italic">
-                                Transforming Shipping with US!
-                            </h1>
-                            <div className="space-y-2">
-                                {features.map((feature, index) => (
-                                    <div key={index} className="flex items-center gap-2">
-                                        <div className="size-6 rounded-full bg-main flex items-center justify-center">
-                                            <ArrowRight className="size-4 text-white" />
-                                        </div>
-                                        <p className="text-lg">{feature}</p>
-                                    </div>
-                                ))}
-                            </div>
-                            <p className="text-gray-500">
-                                Trusted by more than 1 lakh+ brands
-                            </p>
-                        </div>
-                        <div className="relative h-[400px] mr-auto">
-                            <img
-                                src="/images/seller/details.png"
-                                alt="Company Details"
-                                className="w-full h-full object-contain"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Right Side - Form */}
-                    <div className="lg:px-6 w-full order-1 lg:order-2 h-full">
-                        <div className="flex-1 mx-auto text-center">
-                            <h2 className="text-2xl lg:text-3xl font-semibold mb-8">
-                                Get Started With a Free Account
-                            </h2>
-                            <p className="text-gray-600 mb-8">
-                                Upload Documents
-                            </p>
-                        </div>
-
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                <FormField
-                                    control={form.control}
-                                    name="category"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Select Your Company Category</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="bg-[#99BCDDB5]">
-                                                        <SelectValue placeholder="Select Category From Filter" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="ecommerce">
-                                                        E-commerce
-                                                    </SelectItem>
-                                                    <SelectItem value="retail">
-                                                        Retail
-                                                    </SelectItem>
-                                                    <SelectItem value="manufacturing">
-                                                        Manufacturing
-                                                    </SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="gstNumber"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Enter your GST Number(if yes)</FormLabel>
-                                                <div className="flex gap-2">
-                                                    <FormControl>
-                                                        <Input
-                                                            placeholder="GST Number"
-                                                            className="bg-[#99BCDDB5]"
-                                                            {...field}
-                                                        />
-                                                    </FormControl>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="bg-[#99BCDDB5] hover:bg-[#99BCDDB5]/50 border-0"
-                                                        onClick={() => {
-                                                            setUploadType("gst");
-                                                            setIsDialogOpen(true);
-                                                        }}
-                                                    >
-                                                        <Upload className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="panNumber"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Enter Pan Card Number</FormLabel>
-                                                <div className="flex gap-2">
-                                                    <FormControl>
-                                                        <Input
-                                                            placeholder="Pan Card Number"
-                                                            className="bg-[#99BCDDB5]"
-                                                            {...field}
-                                                        />
-                                                    </FormControl>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="bg-[#99BCDDB5] hover:bg-[#99BCDDB5]/50 border-0"
-                                                        onClick={() => {
-                                                            setUploadType("pan");
-                                                            setIsDialogOpen(true);
-                                                        }}
-                                                    >
-                                                        <Upload className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="aadhaarNumber"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Enter Aadhaar Card Number</FormLabel>
-                                                <div className="flex gap-2">
-                                                    <FormControl>
-                                                        <Input
-                                                            placeholder="Aadhaar Card Number"
-                                                            className="bg-[#99BCDDB5]"
-                                                            {...field}
-                                                        />
-                                                    </FormControl>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        className="bg-[#99BCDDB5] hover:bg-[#99BCDDB5]/50 border-0"
-                                                        onClick={() => {
-                                                            setUploadType("aadhaar");
-                                                            setIsDialogOpen(true);
-                                                        }}
-                                                    >
-                                                        <Upload className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="monthlyShipments"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Your Monthly Shipments</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                    <FormControl>
-                                                        <SelectTrigger className="bg-[#99BCDDB5]">
-                                                            <SelectValue placeholder="Choose in the Range Filter" />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        <SelectItem value="0-100">0-100</SelectItem>
-                                                        <SelectItem value="101-500">101-500</SelectItem>
-                                                        <SelectItem value="501-1000">501-1000</SelectItem>
-                                                        <SelectItem value="1001-5000">1001-5000</SelectItem>
-                                                        <SelectItem value="5000+">5000+</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="address1"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Address</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="Address1"
-                                                        className="bg-[#99BCDDB5]"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="address2"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>&nbsp;</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="Address2"
-                                                        className="bg-[#99BCDDB5]"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="city"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>City</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="City"
-                                                        className="bg-[#99BCDDB5]"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="state"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>State</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="State"
-                                                        className="bg-[#99BCDDB5]"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-
-                                <FormField
-                                    control={form.control}
-                                    name="pincode"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Pincode</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    placeholder="Pincode"
-                                                    className="bg-[#99BCDDB5]"
-                                                    {...field}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="acceptTerms"
-                                    render={({ field }) => (
-                                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                            <FormControl>
-                                                <Checkbox
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                />
-                                            </FormControl>
-                                            <div className="space-y-1 leading-none">
-                                                <FormLabel>
-                                                    I have read and accept the privacy policy & conditions of use
-                                                </FormLabel>
-                                                <FormMessage />
-                                            </div>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <div className="flex justify-center pt-4">
-                                    <Button
-                                        type="submit"
-                                        className="w-1/2 bg-[#2B4EA8] hover:bg-[#2B4EA8]/90 text-white"
-                                        disabled={!form.watch("acceptTerms")}
-                                    >
-                                        Save
-                                    </Button>
-                                </div>
-                            </form>
-                        </Form>
-                    </div>
-                </div>
-            </div>
-
-            <UploadModal
-                open={isDialogOpen}
-                onOpenChange={setIsDialogOpen}
-                title={`Upload ${uploadType?.toUpperCase()} Document`}
-                onUpload={handleUpload}
-            />
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <Spinner size="lg" />
+      </div>
     );
-};
+  }
 
-export default SellerCompanyDetailsPage; 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <p className="text-red-500 mb-4">{error}</p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-8">Company Details</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Basic Information */}
+        <Card className="p-6">
+          <h2 className="text-lg font-semibold mb-4">Basic Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Company Name</label>
+              <Input
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Registration Number</label>
+              <Input
+                name="registrationNumber"
+                value={formData.registrationNumber}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Tax ID</label>
+              <Input
+                name="taxId"
+                value={formData.taxId}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Business Type</label>
+              <Select
+                value={formData.businessType}
+                onValueChange={(value) => handleSelectChange('businessType', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select business type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="individual">Individual</SelectItem>
+                  <SelectItem value="partnership">Partnership</SelectItem>
+                  <SelectItem value="corporation">Corporation</SelectItem>
+                  <SelectItem value="llc">LLC</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Industry</label>
+              <Input
+                name="industry"
+                value={formData.industry}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Website (Optional)</label>
+              <Input
+                name="website"
+                value={formData.website}
+                onChange={handleInputChange}
+                type="url"
+              />
+            </div>
+          </div>
+        </Card>
+
+        {/* Address Information */}
+        <Card className="p-6">
+          <h2 className="text-lg font-semibold mb-4">Address Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Street Address</label>
+              <Input
+                name="address.street"
+                value={formData.address?.street}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">City</label>
+              <Input
+                name="address.city"
+                value={formData.address?.city}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">State</label>
+              <Input
+                name="address.state"
+                value={formData.address?.state}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Country</label>
+              <Input
+                name="address.country"
+                value={formData.address?.country}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">ZIP Code</label>
+              <Input
+                name="address.zipCode"
+                value={formData.address?.zipCode}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+          </div>
+        </Card>
+
+        {/* Contact Person Information */}
+        <Card className="p-6">
+          <h2 className="text-lg font-semibold mb-4">Contact Person Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Name</label>
+              <Input
+                name="contactPerson.name"
+                value={formData.contactPerson?.name}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Email</label>
+              <Input
+                name="contactPerson.email"
+                value={formData.contactPerson?.email}
+                onChange={handleInputChange}
+                type="email"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Phone</label>
+              <Input
+                name="contactPerson.phone"
+                value={formData.contactPerson?.phone}
+                onChange={handleInputChange}
+                type="tel"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Position</label>
+              <Input
+                name="contactPerson.position"
+                value={formData.contactPerson?.position}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+          </div>
+        </Card>
+
+        {/* Document Upload */}
+        <Card className="p-6">
+          <h2 className="text-lg font-semibold mb-4">Required Documents</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Registration Certificate</label>
+              <Input
+                type="file"
+                onChange={(e) => handleFileUpload(e, 'registrationCertificate')}
+                accept=".pdf,.jpg,.jpeg,.png"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Tax Certificate</label>
+              <Input
+                type="file"
+                onChange={(e) => handleFileUpload(e, 'taxCertificate')}
+                accept=".pdf,.jpg,.jpeg,.png"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Business License</label>
+              <Input
+                type="file"
+                onChange={(e) => handleFileUpload(e, 'businessLicense')}
+                accept=".pdf,.jpg,.jpeg,.png"
+              />
+            </div>
+          </div>
+        </Card>
+
+        <div className="flex justify-end">
+          <Button type="submit" className="bg-purple-600 text-white hover:bg-purple-700">
+            Save and Continue
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+} 

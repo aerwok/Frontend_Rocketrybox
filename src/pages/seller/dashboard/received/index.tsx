@@ -1,238 +1,242 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Download, FileSpreadsheet, UploadCloud, X } from "lucide-react";
-import { toast } from "sonner";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
-import * as XLSX from 'xlsx';
+import { useState } from 'react';
+import { useOrders, useOrderStats } from '@/hooks/useOrders';
+import { Order, OrderStatus } from '@/types/order';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Search, Filter, Package, Calendar } from 'lucide-react';
+import { toast } from 'sonner';
 
-interface UploadedFile {
-    name: string;
-    size: number;
-    status: 'uploading' | 'success' | 'error';
-    progress: number;
-}
+/**
+ * Received Orders Page Component
+ * Displays a list of received orders with filtering and search capabilities
+ */
+export default function ReceivedOrdersPage() {
+  const { orders, loading, error, filters, pagination, updateFilters } = useOrders();
+  const { stats, loading: statsLoading } = useOrderStats();
+  const [searchQuery, setSearchQuery] = useState('');
 
-// Sample AWB data for the Excel file
-const sampleAwbData = [
-    { awb: "8044601751" },
-    { awb: "8044601752" },
-    { awb: "8044601621" },
-    { awb: "8044601643" },
-    { awb: "8044601654" },
-    { awb: "8044601676" },
-    { awb: "8044601680" },
-    { awb: "8044603631" },
-];
+  // Handle search input change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
 
-const SellerReceivedPage = () => {
-    const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-    const [dragActive, setDragActive] = useState(false);
+  // Handle search submission
+  const handleSearch = () => {
+    updateFilters({ search: searchQuery });
+  };
 
-    const handleFileSelect = async (files: FileList | null) => {
-        if (!files) return;
+  // Handle status filter change
+  const handleStatusChange = (status: OrderStatus | '') => {
+    updateFilters({ status: status || undefined });
+  };
 
-        const newFiles: UploadedFile[] = Array.from(files).map(file => ({
-            name: file.name,
-            size: file.size,
-            status: 'uploading',
-            progress: 0
-        }));
+  // Handle date range change
+  const handleDateRangeChange = (startDate: string, endDate: string) => {
+    updateFilters({ startDate, endDate });
+  };
 
-        setUploadedFiles(prev => [...prev, ...newFiles]);
-
-        // Simulate file upload progress
-        for (let i = 0; i < newFiles.length; i++) {
-            const fileIndex = uploadedFiles.length + i;
-            for (let progress = 0; progress <= 100; progress += 10) {
-                await new Promise(resolve => setTimeout(resolve, 200));
-                setUploadedFiles(prev => {
-                    const updated = [...prev];
-                    updated[fileIndex] = {
-                        ...updated[fileIndex],
-                        progress,
-                        status: progress === 100 ? 'success' : 'uploading'
-                    };
-                    return updated;
-                });
-            }
-        }
-
-        toast.success("Files uploaded successfully!");
+  // Get status badge color
+  const getStatusColor = (status: OrderStatus) => {
+    const colors = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      processing: 'bg-blue-100 text-blue-800',
+      shipped: 'bg-purple-100 text-purple-800',
+      delivered: 'bg-green-100 text-green-800',
+      cancelled: 'bg-red-100 text-red-800',
     };
+    return colors[status];
+  };
 
-    const handleDrag = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.type === "dragenter" || e.type === "dragover") {
-            setDragActive(true);
-        } else if (e.type === "dragleave") {
-            setDragActive(false);
-        }
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragActive(false);
-        handleFileSelect(e.dataTransfer.files);
-    };
-
-    const handleDownloadSample = () => {
-        try {
-            // Create a new workbook
-            const workbook = XLSX.utils.book_new();
-            
-            // Convert the sample data to worksheet
-            const worksheet = XLSX.utils.json_to_sheet(sampleAwbData);
-            
-            // Add the worksheet to the workbook
-            XLSX.utils.book_append_sheet(workbook, worksheet, "AWB Numbers");
-            
-            // Generate Excel file and trigger download
-            XLSX.writeFile(workbook, "sample_awb_list.xlsx");
-            
-            toast.success("Sample file downloaded successfully!");
-        } catch (error) {
-            console.error("Error downloading sample file:", error);
-            toast.error("Failed to download sample file");
-        }
-    };
-
-    const removeFile = (index: number) => {
-        setUploadedFiles(prev => prev.filter((_, i) => i !== index));
-    };
-
+  if (loading || statsLoading) {
     return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <h1 className="text-xl lg:text-2xl font-semibold">
-                    Received
-                </h1>
-                <Button
-                    variant="outline"
-                    className="gap-2"
-                    onClick={handleDownloadSample}
-                >
-                    <Download className="h-4 w-4" />
-                    Download Sample Excel
-                </Button>
-            </div>
-
-            <Card className="shadow-none border-none">
-                <CardHeader>
-                    <CardTitle>
-                        Upload File
-                    </CardTitle>
-                    <CardDescription>
-                        Upload your file in Excel format (.xls, .xlsx, .csv)
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div
-                        className={`relative border-2 border-dashed rounded-lg p-8 ${
-                            dragActive
-                                ? "border-violet-500 bg-violet-50"
-                                : "border-gray-300 bg-gray-50"
-                        }`}
-                        onDragEnter={handleDrag}
-                        onDragLeave={handleDrag}
-                        onDragOver={handleDrag}
-                        onDrop={handleDrop}
-                    >
-                        <input
-                            type="file"
-                            multiple
-                            accept=".xls,.xlsx,.csv"
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            onChange={(e) => handleFileSelect(e.target.files)}
-                        />
-                        <div className="text-center">
-                            <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
-                            <p className="mt-2 text-sm text-gray-600">
-                                Drag and drop your files here, or click to browse
-                            </p>
-                            <p className="mt-1 text-xs text-gray-500">
-                                Supported formats: .xls, .xlsx, .csv (Max 5MB per file)
-                            </p>
-                        </div>
-                    </div>
-
-                    {uploadedFiles.length > 0 && (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>File Name</TableHead>
-                                    <TableHead>Size</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Progress</TableHead>
-                                    <TableHead className="w-[100px]">Action</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {uploadedFiles.map((file, index) => (
-                                    <TableRow key={index}>
-                                        <TableCell className="flex items-center gap-2">
-                                            <FileSpreadsheet className="h-4 w-4 text-violet-500" />
-                                            {file.name}
-                                        </TableCell>
-                                        <TableCell>
-                                            {(file.size / (1024 * 1024)).toFixed(2)} MB
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                file.status === 'success' ? 'bg-green-100 text-green-800' :
-                                                file.status === 'error' ? 'bg-red-100 text-red-800' :
-                                                'bg-blue-100 text-blue-800'
-                                            }`}>
-                                                {file.status.charAt(0).toUpperCase() + file.status.slice(1)}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Progress value={file.progress} className="w-[100px]" />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => removeFile(index)}
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    )}
-
-                    <div className="mt-4 text-sm text-gray-500">
-                        <p className="font-medium">
-                            Instructions:
-                        </p>
-                        <ul className="list-disc list-inside space-y-1 mt-2">
-                            <li>
-                                File should be in Excel format (.xls, .xlsx) or CSV format
-                            </li>
-                            <li>
-                                Maximum file size allowed is 5MB
-                            </li>
-                            <li>
-                                Make sure to follow the sample format for successful upload
-                            </li>
-                            <li>
-                                All required fields must be filled
-                            </li>
-                            <li>
-                                Format should have column 'awb' with AWB numbers
-                            </li>
-                        </ul>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
     );
-};
+  }
 
-export default SellerReceivedPage; 
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-500">{error}</p>
+        <Button onClick={() => window.location.reload()} className="mt-4">
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto py-8">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pending}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Processing Orders</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.processing}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+          <CardDescription>Filter orders by various criteria</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="search">Search</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="search"
+                  placeholder="Search orders..."
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                />
+                <Button onClick={handleSearch}>
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={filters.status || ''}
+                onValueChange={handleStatusChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="processing">Processing</SelectItem>
+                  <SelectItem value="shipped">Shipped</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Date Range</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={filters.startDate || ''}
+                  onChange={(e) => handleDateRangeChange(e.target.value, filters.endDate || '')}
+                />
+                <Input
+                  type="date"
+                  value={filters.endDate || ''}
+                  onChange={(e) => handleDateRangeChange(filters.startDate || '', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Orders Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Received Orders</CardTitle>
+          <CardDescription>List of all received orders</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order ID</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {orders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell>{order.orderNumber}</TableCell>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium">{order.customerName}</div>
+                      <div className="text-sm text-gray-500">{order.customerEmail}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>₹{order.totalAmount.toFixed(2)}</TableCell>
+                  <TableCell>
+                    <Badge className={getStatusColor(order.status)}>
+                      {order.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(order.createdAt).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="outline" size="sm">
+                      View Details
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-gray-500">
+              Showing {orders.length} of {pagination.total} orders
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pagination.page === 1}
+                onClick={() => updateFilters({ page: pagination.page - 1 })}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pagination.page === pagination.totalPages}
+                onClick={() => updateFilters({ page: pagination.page + 1 })}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+} 

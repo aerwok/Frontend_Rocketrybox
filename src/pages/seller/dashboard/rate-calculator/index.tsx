@@ -1,334 +1,282 @@
-import { Button } from "@/components/ui/button";
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Calculator, Package, Truck } from "lucide-react";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { toast } from "sonner";
+import { useState } from 'react';
+import { useRateCalculator, usePincode, useServiceTypes } from '@/hooks/useRateCalculator';
+import { RateCalculationInput } from '@/types/rate-calculator';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Calculator, MapPin, Package, CreditCard } from 'lucide-react';
+import { toast } from 'sonner';
 
-const rateCalculatorSchema = z.object({
-    originPincode: z.string().length(6, "Pincode must be 6 digits"),
-    destinationPincode: z.string().length(6, "Pincode must be 6 digits"),
-    weight: z.number().min(0.1, "Weight must be at least 0.1 kg"),
-    length: z.number().min(1, "Length must be at least 1 cm"),
-    width: z.number().min(1, "Width must be at least 1 cm"),
-    height: z.number().min(1, "Height must be at least 1 cm"),
-    value: z.number().min(0, "Value must be at least 0"),
-    serviceType: z.enum(["Standard", "Express"]),
-});
+/**
+ * Rate Calculator Page Component
+ * Allows users to calculate shipping rates based on various parameters
+ */
+export default function RateCalculatorPage() {
+  const { result, loading, error, calculateRate } = useRateCalculator();
+  const { validatePincode } = usePincode();
+  const { serviceTypes, loading: serviceTypesLoading } = useServiceTypes();
 
-type RateCalculatorForm = z.infer<typeof rateCalculatorSchema>;
+  const [formData, setFormData] = useState<RateCalculationInput>({
+    weight: 0,
+    dimensions: {
+      length: 0,
+      width: 0,
+      height: 0,
+    },
+    sourcePincode: '',
+    destinationPincode: '',
+    serviceType: 'standard',
+    paymentMode: 'prepaid',
+  });
 
-interface RateResult {
-    courier: string;
-    serviceType: string;
-    deliveryTime: string;
-    baseRate: number;
-    weightCharge: number;
-    fuelSurcharge: number;
-    codCharge: number;
-    gst: number;
-    totalCharge: number;
-    isRecommended: boolean;
-}
-
-const SellerRateCalculatorPage = () => {
-    const [rates, setRates] = useState<RateResult[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-
-    const form = useForm<RateCalculatorForm>({
-        resolver: zodResolver(rateCalculatorSchema),
-        defaultValues: {
-            originPincode: "",
-            destinationPincode: "",
-            weight: 0.1,
-            length: 1,
-            width: 1,
-            height: 1,
-            value: 0,
-            serviceType: "Standard",
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (name.startsWith('dimensions.')) {
+      const dimension = name.split('.')[1];
+      setFormData(prev => ({
+        ...prev,
+        dimensions: {
+          ...prev.dimensions,
+          [dimension]: parseFloat(value) || 0,
         },
-    });
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: name === 'weight' ? parseFloat(value) || 0 : value,
+      }));
+    }
+  };
 
-    const onSubmit = async (data: RateCalculatorForm) => {
-        try {
-            setIsLoading(true);
-            // Mock API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Mock response data
-            const mockRates: RateResult[] = [
-                {
-                    courier: "RocketryBox",
-                    serviceType: data.serviceType,
-                    deliveryTime: data.serviceType === "Express" ? "1-2 days" : "3-5 days",
-                    baseRate: data.serviceType === "Express" ? 150 : 100,
-                    weightCharge: data.weight * 20,
-                    fuelSurcharge: 50,
-                    codCharge: 30,
-                    gst: 18,
-                    totalCharge: data.serviceType === "Express" ? 250 : 200,
-                    isRecommended: true,
-                },
-                {
-                    courier: "Express Delivery",
-                    serviceType: data.serviceType,
-                    deliveryTime: data.serviceType === "Express" ? "1-2 days" : "3-5 days",
-                    baseRate: data.serviceType === "Express" ? 180 : 120,
-                    weightCharge: data.weight * 25,
-                    fuelSurcharge: 60,
-                    codCharge: 35,
-                    gst: 18,
-                    totalCharge: data.serviceType === "Express" ? 280 : 220,
-                    isRecommended: false,
-                },
-            ];
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-            setRates(mockRates);
-            toast.success("Shipping rates calculated successfully!");
-        } catch (error) {
-            console.error("Error calculating rates:", error);
-            toast.error("Failed to calculate shipping rates. Please try again.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    // Validate pincodes
+    const isSourceValid = await validatePincode(formData.sourcePincode);
+    const isDestinationValid = await validatePincode(formData.destinationPincode);
 
+    if (!isSourceValid || !isDestinationValid) {
+      toast.error('Please enter valid pincodes');
+      return;
+    }
+
+    // Calculate rate
+    await calculateRate(formData);
+  };
+
+  if (serviceTypesLoading) {
     return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <h1 className="text-xl lg:text-2xl font-semibold">
-                    Rate Calculator
-                </h1>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <Calculator className="size-4" />
-                    <span>Calculate shipping rates instantly</span>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Calculator Form */}
-                <div className="space-y-6">
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="originPincode"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Origin Pincode</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="Enter 6-digit pincode" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="destinationPincode"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Destination Pincode</FormLabel>
-                                            <FormControl>
-                                                <Input placeholder="Enter 6-digit pincode" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="weight"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Weight (kg)</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" step="0.1" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="serviceType"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Service Type</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Select service type" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="Standard">Standard</SelectItem>
-                                                    <SelectItem value="Express">Express</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="length"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Length (cm)</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="width"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Width (cm)</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="height"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Height (cm)</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-
-                            <FormField
-                                control={form.control}
-                                name="value"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Declared Value (₹)</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            <Button type="submit" className="w-full" disabled={isLoading}>
-                                {isLoading ? "Calculating..." : "Calculate Rates"}
-                            </Button>
-                        </form>
-                    </Form>
-                </div>
-
-                {/* Results */}
-                <div className="space-y-6">
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Package className="size-4" />
-                        <span>Available Shipping Rates</span>
-                    </div>
-
-                    {rates.length > 0 ? (
-                        <div className="space-y-4">
-                            {rates.map((rate, index) => (
-                                <div
-                                    key={index}
-                                    className={`p-4 rounded-lg border ${
-                                        rate.isRecommended ? "border-purple-500 bg-purple-50" : "border-gray-200"
-                                    }`}
-                                >
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <Truck className="size-4" />
-                                            <h3 className="font-medium">{rate.courier}</h3>
-                                        </div>
-                                        {rate.isRecommended && (
-                                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                                                Recommended
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="space-y-2 text-sm">
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Service Type:</span>
-                                            <span className="font-medium">{rate.serviceType}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Delivery Time:</span>
-                                            <span className="font-medium">{rate.deliveryTime}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Base Rate:</span>
-                                            <span className="font-medium">₹{rate.baseRate}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Weight Charge:</span>
-                                            <span className="font-medium">₹{rate.weightCharge}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Fuel Surcharge:</span>
-                                            <span className="font-medium">₹{rate.fuelSurcharge}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">COD Charge:</span>
-                                            <span className="font-medium">₹{rate.codCharge}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">GST (18%):</span>
-                                            <span className="font-medium">₹{rate.gst}</span>
-                                        </div>
-                                        <div className="flex justify-between pt-2 border-t">
-                                            <span className="font-medium">Total Charge:</span>
-                                            <span className="font-semibold text-purple-600">₹{rate.totalCharge}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8 text-gray-500">
-                            Enter shipping details to calculate rates
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
     );
-};
+  }
 
-export default SellerRateCalculatorPage; 
+  return (
+    <div className="container mx-auto py-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Rate Calculator Form */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Rate Calculator</CardTitle>
+            <CardDescription>Calculate shipping rates for your packages</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Package Details */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Package Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="weight">Weight (kg)</Label>
+                    <Input
+                      id="weight"
+                      name="weight"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.weight}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Dimensions (cm)</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Input
+                        name="dimensions.length"
+                        placeholder="Length"
+                        type="number"
+                        min="0"
+                        value={formData.dimensions.length}
+                        onChange={handleInputChange}
+                        required
+                      />
+                      <Input
+                        name="dimensions.width"
+                        placeholder="Width"
+                        type="number"
+                        min="0"
+                        value={formData.dimensions.width}
+                        onChange={handleInputChange}
+                        required
+                      />
+                      <Input
+                        name="dimensions.height"
+                        placeholder="Height"
+                        type="number"
+                        min="0"
+                        value={formData.dimensions.height}
+                        onChange={handleInputChange}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Location Details */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Location Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="sourcePincode">Source Pincode</Label>
+                    <Input
+                      id="sourcePincode"
+                      name="sourcePincode"
+                      value={formData.sourcePincode}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="destinationPincode">Destination Pincode</Label>
+                    <Input
+                      id="destinationPincode"
+                      name="destinationPincode"
+                      value={formData.destinationPincode}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Service Details */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Service Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="serviceType">Service Type</Label>
+                    <Select
+                      value={formData.serviceType}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, serviceType: value as 'standard' | 'express' | 'priority' }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select service type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {serviceTypes.map((service) => (
+                          <SelectItem key={service.id} value={service.id}>
+                            {service.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="paymentMode">Payment Mode</Label>
+                    <Select
+                      value={formData.paymentMode}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMode: value as 'prepaid' | 'cod' }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select payment mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="prepaid">Prepaid</SelectItem>
+                        <SelectItem value="cod">Cash on Delivery</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Calculating...
+                  </>
+                ) : (
+                  <>
+                    <Calculator className="mr-2 h-4 w-4" />
+                    Calculate Rate
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Rate Calculation Result */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Rate Details</CardTitle>
+            <CardDescription>Shipping rate calculation results</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error ? (
+              <div className="text-red-500">{error}</div>
+            ) : result ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Base Rate</h4>
+                    <p className="text-lg font-semibold">₹{result.baseRate.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Fuel Surcharge</h4>
+                    <p className="text-lg font-semibold">₹{result.fuelSurcharge.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Service Tax</h4>
+                    <p className="text-lg font-semibold">₹{result.serviceTax.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500">Total Amount</h4>
+                    <p className="text-lg font-semibold">₹{result.totalAmount.toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Service Type</h4>
+                      <p className="text-lg font-semibold">{result.serviceType}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Payment Mode</h4>
+                      <p className="text-lg font-semibold">{result.paymentMode}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500">Estimated Delivery</h4>
+                      <p className="text-lg font-semibold">{result.estimatedDelivery}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-gray-500">
+                Enter package details and calculate rate
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+} 

@@ -1,293 +1,228 @@
-import { Button } from "@/components/ui/button";
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from "@/components/ui/form";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
-import {
-    Phone,
-    Mail,
-    MessageSquare,
-    HelpCircle,
-    Clock,
-} from "lucide-react";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { toast } from "sonner";
+import { useState } from 'react';
+import { useTickets, useTicketStats } from '@/hooks/useSupport';
+import { TicketStatus, TicketPriority, TicketCategory } from '@/types/support';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
+import { formatDate } from '@/lib/utils';
 
-const supportTicketSchema = z.object({
-    subject: z.string().min(1, "Subject is required"),
-    category: z.string().min(1, "Category is required"),
-    priority: z.string().min(1, "Priority is required"),
-    description: z.string().min(10, "Description must be at least 10 characters"),
-});
+/**
+ * Support Page Component
+ * Displays a list of support tickets with filtering and search capabilities
+ */
+export default function SupportPage() {
+    const { tickets, loading, error, filters, updateFilters } = useTickets();
+    const { stats, loading: statsLoading } = useTicketStats();
+    const [searchQuery, setSearchQuery] = useState('');
 
-type SupportTicketForm = z.infer<typeof supportTicketSchema>;
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        updateFilters({ search: searchQuery });
+    };
 
-const faqItems = [
-    {
-        question: "How do I create a shipping order?",
-        answer: "To create a shipping order, go to the 'Orders' section and click 'Create New Order'. Fill in the required details including pickup and delivery addresses, package details, and select your preferred shipping service.",
-    },
-    {
-        question: "What payment methods are supported?",
-        answer: "We support various payment methods including credit/debit cards, net banking, UPI, and cash on delivery. Payment options may vary based on your location and order value.",
-    },
-    {
-        question: "How can I track my shipments?",
-        answer: "You can track your shipments by entering the tracking number in the 'Track Shipment' section. You'll receive real-time updates about your shipment's status and location.",
-    },
-    {
-        question: "How are shipping rates calculated?",
-        answer: "Shipping rates are calculated based on factors such as package weight, dimensions, origin and destination locations, and the selected service type. You can use our rate calculator to get an estimate.",
-    },
-    {
-        question: "What is your return policy?",
-        answer: "We offer a hassle-free return policy. If you need to return an item, please contact our support team within 7 days of delivery. We'll guide you through the return process and arrange for pickup.",
-    },
-];
+    const handleStatusChange = (status: TicketStatus | '') => {
+        updateFilters({ status: status || undefined });
+    };
 
-const SellerSupportPage = () => {
-    const form = useForm<SupportTicketForm>({
-        resolver: zodResolver(supportTicketSchema),
-        defaultValues: {
-            subject: "",
-            category: "",
-            priority: "",
-            description: "",
-        },
-    });
+    const handlePriorityChange = (priority: TicketPriority | '') => {
+        updateFilters({ priority: priority || undefined });
+    };
 
-    const onSubmit = async () => {
-        try {
-            // Simulate API call
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            toast.success("Support ticket created successfully!");
-            form.reset();
-        } catch (error) {
-            toast.error("Failed to create support ticket");
+    const handleCategoryChange = (category: TicketCategory | '') => {
+        updateFilters({ category: category || undefined });
+    };
+
+    const getStatusBadgeColor = (status: TicketStatus) => {
+        switch (status) {
+            case 'open':
+                return 'bg-blue-100 text-blue-800';
+            case 'in_progress':
+                return 'bg-yellow-100 text-yellow-800';
+            case 'resolved':
+                return 'bg-green-100 text-green-800';
+            case 'closed':
+                return 'bg-gray-100 text-gray-800';
+            default:
+                return 'bg-gray-100 text-gray-800';
         }
     };
 
+    if (loading || statsLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <Spinner size="lg" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen">
+                <p className="text-red-500 mb-4">{error}</p>
+                <Button onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+        );
+    }
+
     return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <h1 className="text-xl lg:text-2xl font-semibold">
-                    Support
-                </h1>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <MessageSquare className="size-4" />
-                    <span>Get help and support for your queries</span>
-                </div>
+        <div className="container mx-auto px-4 py-8">
+            <h1 className="text-2xl font-bold mb-8">Support Tickets</h1>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <Card className="p-4">
+                    <h3 className="text-sm font-medium text-gray-500">Total Tickets</h3>
+                    <p className="text-2xl font-bold">{stats?.total || 0}</p>
+                </Card>
+                <Card className="p-4">
+                    <h3 className="text-sm font-medium text-gray-500">Open Tickets</h3>
+                    <p className="text-2xl font-bold">{stats?.open || 0}</p>
+                </Card>
+                <Card className="p-4">
+                    <h3 className="text-sm font-medium text-gray-500">In Progress</h3>
+                    <p className="text-2xl font-bold">{stats?.in_progress || 0}</p>
+                </Card>
+                <Card className="p-4">
+                    <h3 className="text-sm font-medium text-gray-500">Resolved</h3>
+                    <p className="text-2xl font-bold">{stats?.resolved || 0}</p>
+                </Card>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Contact Information */}
-                <div className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Contact Information</CardTitle>
-                            <CardDescription>
-                                Get in touch with our support team
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-full bg-blue-100">
-                                    <Phone className="size-5 text-blue-600" />
-                                </div>
-                                <div>
-                                    <p className="font-medium">Phone Support</p>
-                                    <p className="text-sm text-gray-500">1800-XXX-XXXX</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-full bg-blue-100">
-                                    <Mail className="size-5 text-blue-600" />
-                                </div>
-                                <div>
-                                    <p className="font-medium">Email Support</p>
-                                    <p className="text-sm text-gray-500">support@example.com</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-full bg-blue-100">
-                                    <Clock className="size-5 text-blue-600" />
-                                </div>
-                                <div>
-                                    <p className="font-medium">Support Hours</p>
-                                    <p className="text-sm text-gray-500">
-                                        Monday - Saturday, 9:00 AM - 6:00 PM
-                                    </p>
-                        </div>
-                    </div>
-                        </CardContent>
-                    </Card>
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-4 mb-8">
+                <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
+                    <Input
+                        type="text"
+                        placeholder="Search tickets..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="flex-1"
+                    />
+                    <Select
+                        value={filters.status || ''}
+                        onChange={(e) => handleStatusChange(e.target.value as TicketStatus)}
+                        className="w-full md:w-40"
+                    >
+                        <option value="">All Status</option>
+                        <option value="open">Open</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                    </Select>
+                    <Select
+                        value={filters.priority || ''}
+                        onChange={(e) => handlePriorityChange(e.target.value as TicketPriority)}
+                        className="w-full md:w-40"
+                    >
+                        <option value="">All Priority</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                    </Select>
+                    <Select
+                        value={filters.category || ''}
+                        onChange={(e) => handleCategoryChange(e.target.value as TicketCategory)}
+                        className="w-full md:w-40"
+                    >
+                        <option value="">All Categories</option>
+                        <option value="technical">Technical</option>
+                        <option value="billing">Billing</option>
+                        <option value="shipping">Shipping</option>
+                        <option value="account">Account</option>
+                        <option value="other">Other</option>
+                    </Select>
+                    <Button type="submit">Search</Button>
+                </form>
+            </div>
 
-                    {/* FAQ Section */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <HelpCircle className="size-5" />
-                                Frequently Asked Questions
-                            </CardTitle>
-                            <CardDescription>
-                                Find answers to common questions
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Accordion type="single" collapsible className="w-full">
-                                {faqItems.map((item, index) => (
-                                    <AccordionItem key={index} value={`item-${index}`}>
-                                        <AccordionTrigger>{item.question}</AccordionTrigger>
-                                        <AccordionContent>{item.answer}</AccordionContent>
-                                    </AccordionItem>
-                                ))}
-                            </Accordion>
-                        </CardContent>
-                    </Card>
-                </div>
+            {/* Tickets Table */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Ticket ID
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Subject
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Priority
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Category
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Created
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {tickets.map((ticket) => (
+                            <tr key={ticket.id}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    #{ticket.id}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {ticket.subject}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <Badge className={getStatusBadgeColor(ticket.status)}>
+                                        {ticket.status}
+                                    </Badge>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {ticket.priority}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {ticket.category}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {formatDate(ticket.createdAt)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <Button
+                                        variant="link"
+                                        onClick={() => window.location.href = `/seller/dashboard/support/${ticket.id}`}
+                                    >
+                                        View
+                                    </Button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
 
-                {/* Support Ticket Form */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <MessageSquare className="size-5" />
-                            Create Support Ticket
-                        </CardTitle>
-                        <CardDescription>
-                            Submit your query and we'll get back to you soon
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                                <FormField
-                                    control={form.control}
-                                    name="subject"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Subject</FormLabel>
-                                            <FormControl>
-                                                <input
-                                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                                    placeholder="Enter ticket subject"
-                                                    {...field}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="category"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Category</FormLabel>
-                                            <Select
-                                                onValueChange={field.onChange}
-                                                defaultValue={field.value}
-                                            >
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Select category" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="shipping">Shipping</SelectItem>
-                                                    <SelectItem value="billing">Billing</SelectItem>
-                                                    <SelectItem value="technical">Technical</SelectItem>
-                                                    <SelectItem value="account">Account</SelectItem>
-                                                    <SelectItem value="other">Other</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="priority"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Priority</FormLabel>
-                                            <Select
-                                                onValueChange={field.onChange}
-                                                defaultValue={field.value}
-                                            >
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Select priority" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="low">Low</SelectItem>
-                                                    <SelectItem value="medium">Medium</SelectItem>
-                                                    <SelectItem value="high">High</SelectItem>
-                                                    <SelectItem value="urgent">Urgent</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="description"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Description</FormLabel>
-                                            <FormControl>
-                                                <Textarea
-                                                    placeholder="Describe your issue in detail"
-                                                    className="min-h-[150px]"
-                                                    {...field}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <Button type="submit" className="w-full">
-                                    Submit Ticket
-                                </Button>
-                            </form>
-                        </Form>
-                    </CardContent>
-                </Card>
+            {/* Pagination */}
+            <div className="mt-4 flex justify-between items-center">
+                <Button
+                    variant="outline"
+                    onClick={() => updateFilters({ page: (filters.page || 1) - 1 })}
+                    disabled={!filters.page || filters.page <= 1}
+                >
+                    Previous
+                </Button>
+                <span className="text-sm text-gray-500">
+                    Page {filters.page || 1}
+                </span>
+                <Button
+                    variant="outline"
+                    onClick={() => updateFilters({ page: (filters.page || 1) + 1 })}
+                >
+                    Next
+                </Button>
             </div>
         </div>
     );
-};
-
-export default SellerSupportPage; 
+} 

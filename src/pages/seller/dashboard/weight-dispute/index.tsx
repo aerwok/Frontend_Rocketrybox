@@ -19,8 +19,12 @@ import { format } from "date-fns";
 import "react-day-picker/dist/style.css";
 import React from "react";
 import { Label } from "@/components/ui/label";
-import * as XLSX from 'xlsx';
-// import axios from 'axios';
+import { useWeightDisputes } from '@/hooks/useWeightDisputes';
+import { DisputeStatus, DisputeType, DisputePriority } from '@/types/weight-dispute';
+import { Card } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
+import { formatDate } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface WeightDisputeData {
     disputeDate: string;
@@ -924,799 +928,173 @@ const DatePickerCalendar = React.memo(({ selected, onSelect, month, onMonthChang
 DatePickerCalendar.displayName = "DatePickerCalendar";
 
 const SellerWeightDisputePage = () => {
-    const [searchParams] = useSearchParams();
-    const searchQuery = searchParams.get("search") || "";
-    const [activeTab, setActiveTab] = useState("all");
-    const [showFilters, setShowFilters] = useState(false);
-    const [filters, setFilters] = useState({
-        dates: "",
-        awb: "",
-        productName: "",
-        courier: ""
-    });
-    // Initialize with April 1-30, 2025 date range by default
-    const initialDateRange = {
-        from: new Date(2025, 3, 1), // April 1, 2025
-        to: new Date(2025, 3, 30)   // April 30, 2025
-    };
-    const [dateRange, setDateRange] = useState<DateRange>(initialDateRange);
-    const [selectedOption, setSelectedOption] = useState<string>("today");
-    const [showDateDropdown, setShowDateDropdown] = useState(false);
-    const [showCalendar, setShowCalendar] = useState(false);
-    const [currentMonth, setCurrentMonth] = useState<Date>(new Date(2025, 3)); // Start with April 2025
-    const dateDropdownRef = useRef<HTMLDivElement>(null);
-    const calendarRef = useRef<HTMLDivElement>(null);
-    const [inputRect, setInputRect] = useState<DOMRect | null>(null);
-    const [showCourierDropdown, setShowCourierDropdown] = useState(false);
-    const [courierOptions] = useState([
-        "Bluedart",
-        "Delhivery",
-        "EcomExpress",
-        "Ekart",
-        "Xpressbees",
-        "Bluedart+",
-        "eKart"
-    ]);
-    const courierInputRef = useRef<HTMLInputElement>(null);
-    const courierDropdownRef = useRef<HTMLDivElement>(null);
-    const [showUploadDialog, setShowUploadDialog] = useState(false);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [uploadStatus, setUploadStatus] = useState<{success?: boolean; message?: string} | null>(null);
-    const [disputes, setDisputes] = useState<WeightDisputeData[]>([]);
-    const [statusCounts, setStatusCounts] = useState<Record<string, number>>({
-        all: 0,
-        "Action Required": 0,
-        "Accepted": 0,
-        "Open Dispute": 0,
-        "Closed Dispute": 0,
-        "Closed Resolved": 0
-    });
-    const [isDataLoading, setIsDataLoading] = useState(false);
-    const [dataError, setDataError] = useState<string | null>(null);
+    const { disputes, loading, error, filters, updateFilters } = useWeightDisputes();
+    const [searchQuery, setSearchQuery] = useState('');
 
-    // Add useEffect to handle positioning
-    useEffect(() => {
-        if (showDateDropdown || showCalendar) {
-            const inputElement = document.querySelector('[data-date-input]');
-            if (inputElement) {
-                setInputRect(inputElement.getBoundingClientRect());
-            }
-        }
-    }, [showDateDropdown, showCalendar]);
-
-    // Add useEffect to handle clicks outside courier dropdown
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                courierDropdownRef.current && 
-                !courierDropdownRef.current.contains(event.target as Node) &&
-                courierInputRef.current && 
-                !courierInputRef.current.contains(event.target as Node)
-            ) {
-                setShowCourierDropdown(false);
-            }
-        };
-
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    }, [courierDropdownRef, courierInputRef]);
-
-    // Function to fetch disputes data with proper API parameters
-    const fetchDisputes = useCallback(async () => {
-        setIsDataLoading(true);
-        setDataError(null);
-        
-        try {
-            // Build API parameters based on current filters
-            const apiParams: Record<string, any> = {};
-            
-            // Add search query if present
-            if (searchQuery) {
-                apiParams.search = searchQuery;
-            }
-            
-            // Add status filter based on active tab
-            if (activeTab !== "all") {
-                if (activeTab === "accepted") {
-                    apiParams.accepted = true;
-                } else {
-                    const tabStatus = tabs.find(tab => tab.id === activeTab)?.status;
-                    if (tabStatus) {
-                        apiParams.status = tabStatus;
-                    }
-                }
-            }
-            
-            // Add other filters
-            if (filters.awb) {
-                apiParams.awbNumber = filters.awb;
-            }
-            
-            if (filters.productName) {
-                apiParams.product = filters.productName;
-            }
-            
-            if (filters.courier) {
-                apiParams.courierPartner = filters.courier;
-            }
-            
-            // Add date range filter
-            if (dateRange.from) {
-                apiParams.fromDate = format(dateRange.from, "yyyy-MM-dd");
-                
-                if (dateRange.to) {
-                    apiParams.toDate = format(dateRange.to, "yyyy-MM-dd");
-                }
-            }
-            
-            // Fetch data from API
-            const data = await weightDisputeApi.getWeightDisputes(apiParams);
-            setDisputes(data);
-            
-            // Calculate status counts
-            const counts: Record<string, number> = {
-                all: data.length,
-                "Action Required": 0,
-                "Accepted": 0,
-                "Open Dispute": 0,
-                "Closed Dispute": 0,
-                "Closed Resolved": 0
-            };
-            
-            data.forEach(item => {
-                if (item.status) {
-                    counts[item.status] = (counts[item.status] || 0) + 1;
-                }
-                if (item.accepted) {
-                    counts["Accepted"] = (counts["Accepted"] || 0) + 1;
-                }
-            });
-            
-            setStatusCounts(counts);
-        } catch (error: any) {
-            console.error('Error fetching disputes:', error);
-            setDataError(error.message || 'Failed to load disputes. Please try again.');
-            setDisputes([]);
-        } finally {
-            setIsDataLoading(false);
-        }
-    }, [activeTab, searchQuery, filters, dateRange]);
-
-    const getStatusCount = (status: string | null) => {
-        if (!status) return statusCounts.all || 0;
-        if (status === "Accepted") return statusCounts[status] || 0;
-        return statusCounts[status] || 0;
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        updateFilters({ search: searchQuery });
     };
 
-    const tabs = [
-        { id: "all", label: "All" },
-        { id: "action-required", label: "Action Required", status: "Action Required" },
-        { id: "accepted", label: "Accepted", status: "Accepted" },
-        { id: "open-dispute", label: "Open Dispute", status: "Open Dispute" },
-        { id: "closed-dispute", label: "Closed Dispute", status: "Closed Dispute" },
-        { id: "closed-resolved", label: "Closed Resolved", status: "Closed Resolved" }
-    ];
-
-    const handleFilterChange = (field: string, value: string) => {
-        setFilters(prev => ({ ...prev, [field]: value }));
+    const handleStatusChange = (value: string) => {
+        const status = value as DisputeStatus | '';
+        updateFilters({ status: status || undefined });
     };
 
-    const handleFilter = () => {
-        setShowFilters(false);
-        fetchDisputes();
+    const handleTypeChange = (value: string) => {
+        const type = value as DisputeType | '';
+        updateFilters({ type: type || undefined });
     };
 
-    const handleClear = () => {
-        setFilters({
-            dates: "",
-            awb: "",
-            productName: "",
-            courier: ""
-        });
-        setDateRange({ from: undefined, to: undefined });
-        setShowCalendar(false);
-        setShowDateDropdown(false);
-        setSelectedOption("today");
+    const handlePriorityChange = (value: string) => {
+        const priority = value as DisputePriority | '';
+        updateFilters({ priority: priority || undefined });
     };
 
-    const handleDateOptionSelect = (option: string) => {
-        setSelectedOption(option);
-        if (option === "Choose Date") {
-            setShowCalendar(true);
-        } else {
-            const now = new Date();
-            let from: Date | undefined = undefined;
-            let to: Date | undefined = undefined;
-
-            switch (option) {
-                case "Today":
-                    from = now;
-                    to = now;
-                    break;
-                case "Yesterday":
-                    from = new Date(now.setDate(now.getDate() - 1));
-                    to = new Date(now);
-                    break;
-                case "Last 7 Days":
-                    to = new Date();
-                    from = new Date(now.setDate(now.getDate() - 7));
-                    break;
-                case "Last 30 Days":
-                    to = new Date();
-                    from = new Date(now.setDate(now.getDate() - 30));
-                    break;
-                case "Last Month":
-                    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                    from = lastMonth;
-                    to = new Date(now.getFullYear(), now.getMonth(), 0);
-                    break;
-                case "Current Month":
-                    from = new Date(now.getFullYear(), now.getMonth(), 1);
-                    to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                    break;
-                case "Lifetime":
-                    from = undefined;
-                    to = undefined;
-                    break;
-            }
-
-            setDateRange({ from, to });
-            setShowDateDropdown(false);
-        }
+    const handleDateRangeChange = (startDate: string, endDate: string) => {
+        updateFilters({ startDate, endDate });
     };
 
-    const handleApply = useCallback(() => {
-        if (dateRange.from) {
-            let dateFilterText = "";
-            if (dateRange.from && dateRange.to) {
-                dateFilterText = `${format(dateRange.from, "MMM d, yyyy")} - ${format(dateRange.to, "MMM d, yyyy")}`;
-            } else if (dateRange.from) {
-                dateFilterText = format(dateRange.from, "MMM d, yyyy");
-            }
-            setFilters(prev => ({ ...prev, dates: dateFilterText }));
-        }
-        setShowCalendar(false);
-        setShowDateDropdown(false);
-    }, [dateRange]);
-
-    const handleDiscard = useCallback(() => {
-        setDateRange({ from: undefined, to: undefined });
-        setFilters(prev => ({ ...prev, dates: "" }));
-        setShowCalendar(false);
-        setShowDateDropdown(false);
-        setSelectedOption("today");
-    }, []);
-
-    // Handle courier selection
-    const handleCourierSelect = (courier: string) => {
-        setFilters(prev => ({ ...prev, courier }));
-        setShowCourierDropdown(false);
-    };
-
-    // Handle file selection
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setSelectedFile(e.target.files[0]);
-        }
-    };
-
-    // Handle upload dialog close
-    const handleCloseUploadDialog = () => {
-        setShowUploadDialog(false);
-        setSelectedFile(null);
-        setUploadStatus(null);
-    };
-
-    // Handle file upload
-    const handleUpload = async () => {
-        if (!selectedFile) return;
-        
-        setIsLoading(true);
-        setUploadStatus(null);
-        
-        try {
-            const result = await weightDisputeApi.uploadDisputeFile(selectedFile);
-            setUploadStatus({
-                success: true,
-                message: result.message || 'File uploaded successfully'
-            });
-            
-            // Refresh the data after successful upload
-            fetchDisputes();
-            
-            // Close dialog after upload
-            setTimeout(() => {
-                handleCloseUploadDialog();
-            }, 1500);
-        } catch (err: any) {
-            console.error('Error uploading file:', err);
-            setUploadStatus({
-                success: false,
-                message: err.message || 'Failed to upload file. Please try again.'
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Fetch data when component mounts or filters change
-    useEffect(() => {
-        fetchDisputes();
-    }, [activeTab, searchQuery, fetchDisputes]);
-
-    // Calendar rendering
-    const renderSimpleCalendar = () => {
-        const handleDateRangeSelect = (range: DateRange | undefined) => {
-            setDateRange(range || initialDateRange);
-        };
-        
-        // Handlers for month navigation buttons
-        const handlePrevMonth = () => {
-            const prevMonth = new Date(currentMonth);
-            prevMonth.setMonth(prevMonth.getMonth() - 1);
-            setCurrentMonth(prevMonth);
-        };
-        
-        const handleNextMonth = () => {
-            const nextMonth = new Date(currentMonth);
-            nextMonth.setMonth(nextMonth.getMonth() + 1);
-            setCurrentMonth(nextMonth);
-        };
-        
-        // Format date display
-        const formatDateDisplay = () => {
-            if (dateRange.from && dateRange.to) {
-                // Get month names and format the date in a clean way
-                const fromMonth = dateRange.from.toLocaleString('default', { month: 'short' });
-                const toMonth = dateRange.to.toLocaleString('default', { month: 'short' });
-                const fromDay = dateRange.from.getDate();
-                const toDay = dateRange.to.getDate();
-                const fromYear = dateRange.from.getFullYear();
-                const toYear = dateRange.to.getFullYear();
-                
-                // If same year but different months
-                if (fromYear === toYear && fromMonth !== toMonth) {
-                    return `${fromMonth} ${fromDay}, ${fromYear} - ${toMonth} ${toDay}, ${toYear}`;
-                } 
-                // If same year and same month
-                else if (fromYear === toYear && fromMonth === toMonth) {
-                    return `${fromMonth} ${fromDay} - ${toDay}, ${fromYear}`;
-                } 
-                // Different years
-                else {
-                    return `${fromMonth} ${fromDay}, ${fromYear} - ${toMonth} ${toDay}, ${toYear}`;
-                }
-            } else if (dateRange.from) {
-                return format(dateRange.from, "MMM d, yyyy");
-            } else {
-                return "All Time";
-            }
-        };
-        
+    if (loading) {
         return (
-            <div className="p-5 pb-4 bg-white border border-gray-200 rounded-xl shadow-sm relative" style={{ width: "420px" }}>
-                <div className="flex justify-between items-center absolute top-5 w-full z-10 px-3.5">
-                    <button 
-                        type="button"
-                        className="h-7 w-7 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100"
-                        onClick={handlePrevMonth}
-                        aria-label="Previous month"
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button 
-                        type="button"
-                        className="h-7 w-7 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 mr-3.5"
-                        onClick={handleNextMonth}
-                        aria-label="Next month"
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                    </button>
-                </div>
-                
-                <DatePickerCalendar
-                    selected={dateRange}
-                    onSelect={handleDateRangeSelect}
-                    month={currentMonth}
-                    onMonthChange={setCurrentMonth}
-                />
-                
-                <div className="flex justify-between items-center pt-3 border-t mt-3">
-                    <div className="text-sm text-gray-700 font-normal">
-                        {formatDateDisplay()}
-                    </div>
-                    <div className="flex gap-3">
-                        <Button
-                            type="button"
-                            onClick={handleDiscard}
-                            className="bg-orange-500 hover:bg-orange-600 text-white border-0 h-9 px-5 text-sm font-medium rounded-md"
-                        >
-                            Discard
-                        </Button>
-                        <Button
-                            type="button"
-                            onClick={handleApply}
-                            className="bg-violet-500 hover:bg-violet-600 text-white border-0 h-9 px-5 text-sm font-medium rounded-md"
-                        >
-                            Apply
-                        </Button>
-                    </div>
-                </div>
+            <div className="flex items-center justify-center min-h-screen">
+                <Spinner size="lg" />
             </div>
         );
-    };
+    }
 
-    // Handle sample file download
-    const handleSampleFileDownload = () => {
-        // Create sample data for MIS report
-        const sampleData = [
-            ['AWB Number', 'Order ID', 'Product', 'Given Weight (kg)', 'Applied Weight (kg)', 'Comments'],
-            ['AWB123456789', 'ORD-123456', 'Product Name 1', '2.5', '2.2', 'Weight discrepancy'],
-            ['AWB987654321', 'ORD-654321', 'Product Name 2', '1.8', '1.5', 'Measurement issue'],
-            ['AWB456789123', 'ORD-789123', 'Product Name 3', '3.2', '3.0', 'Minor difference'],
-            ['AWB789123456', 'ORD-345678', 'Product Name 4', '1.2', '0.9', 'Significant variation'],
-            ['AWB654321987', 'ORD-567890', 'Product Name 5', '2.7', '2.4', 'Weight adjustment needed']
-        ];
-        
-        try {
-            // Create a workbook
-            const workbook = XLSX.utils.book_new();
-            const worksheet = XLSX.utils.aoa_to_sheet(sampleData);
-            
-            // Set column widths for better readability
-            const colWidths = [
-                { wch: 15 }, // AWB Number
-                { wch: 12 }, // Order ID
-                { wch: 25 }, // Product
-                { wch: 18 }, // Given Weight
-                { wch: 20 }, // Applied Weight
-                { wch: 25 }  // Comments
-            ];
-            worksheet['!cols'] = colWidths;
-            
-            // Add the worksheet to the workbook
-            XLSX.utils.book_append_sheet(workbook, worksheet, 'MIS Report');
-            
-            // Generate the Excel file and trigger download
-            XLSX.writeFile(workbook, 'sample-mis-report.xlsx');
-            
-            console.log('Sample MIS report downloaded successfully');
-        } catch (error) {
-            console.error('Error generating sample file:', error);
-            alert('There was an error generating the sample file. Please try again.');
-        }
-    };
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen">
+                <p className="text-red-500 mb-4">{error}</p>
+                <Button onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+        );
+    }
 
     return (
-        <div className="container mx-auto p-4 space-y-4">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">Weight Dispute</h1>
+        <div className="container mx-auto px-4 py-8">
+            <h1 className="text-2xl font-bold mb-8">Weight Disputes</h1>
+
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-4 mb-8">
+                <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
+                    <Input
+                        type="text"
+                        placeholder="Search disputes..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="flex-1"
+                    />
+                    <Select value={filters.status || ''} onValueChange={handleStatusChange}>
+                        <SelectTrigger className="w-full md:w-40">
+                            <SelectValue placeholder="All Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="">All Status</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="in_review">In Review</SelectItem>
+                            <SelectItem value="resolved">Resolved</SelectItem>
+                            <SelectItem value="rejected">Rejected</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={filters.type || ''} onValueChange={handleTypeChange}>
+                        <SelectTrigger className="w-full md:w-40">
+                            <SelectValue placeholder="All Types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="">All Types</SelectItem>
+                            <SelectItem value="weight_mismatch">Weight Mismatch</SelectItem>
+                            <SelectItem value="dimension_mismatch">Dimension Mismatch</SelectItem>
+                            <SelectItem value="label_issue">Label Issue</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={filters.priority || ''} onValueChange={handlePriorityChange}>
+                        <SelectTrigger className="w-full md:w-40">
+                            <SelectValue placeholder="All Priorities" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="">All Priorities</SelectItem>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Button type="submit">Search</Button>
+                </form>
             </div>
 
-            <Tabs defaultValue="all" className="w-full">
-                <TabsList className="flex w-full border-b border-gray-200">
-                    {tabs.map((tab) => (
-                        <TabsTrigger
-                            key={tab.id}
-                            value={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={cn(
-                                "flex-1 px-4 py-2 text-sm font-medium relative",
-                                activeTab === tab.id
-                                    ? "text-purple-600 before:absolute before:bottom-0 before:left-0 before:w-full before:h-0.5 before:bg-purple-600" 
-                                    : "text-gray-500 hover:text-gray-700"
-                            )}
-                        >
-                            {tab.label} ({getStatusCount(tab.status || null)})
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
-            </Tabs>
-
-            <div className="flex justify-end gap-2">
-                <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => setShowUploadDialog(true)}
-                >
-                    <UploadCloud className="w-4 h-4 mr-2" />
-                    Upload Dispute
-                </Button>
-                <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
-                    onClick={() => setShowFilters(!showFilters)}
-                >
-                    <Filter className="w-4 h-4 mr-2" />
-                    Show
-                </Button>
-            </div>
-
-            {showFilters && (
-                <div className="bg-white rounded-lg border p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* Dates */}
-                        <div className="relative">
-                            <Label className="text-sm font-medium text-gray-500">Dates</Label>
-                            <div className="relative mt-1">
-                                <Input
-                                    data-date-input
-                                    placeholder="Dispute Date"
-                                    value={filters.dates}
-                                    onClick={() => setShowDateDropdown(true)}
-                                    readOnly
-                                    className="w-full cursor-pointer bg-white"
-                                />
-                                <div 
-                                    className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer"
-                                    onClick={() => setShowDateDropdown(true)}
-                                >
-                                    <Calendar className="h-4 w-4 text-gray-400" />
-                                </div>
-                            </div>
-
-                            {/* Date Dropdown */}
-                            {showDateDropdown && inputRect && (
-                                <div 
-                                    ref={dateDropdownRef}
-                                    className="fixed z-50 bg-white border rounded-md shadow-lg"
-                                    style={{ 
-                                        top: `${inputRect.bottom + 4}px`,
-                                        left: `${inputRect.left}px`,
-                                        width: `${inputRect.width}px`,
-                                        maxHeight: '300px',
-                                        overflowY: 'auto'
-                                    }}
-                                >
-                                    <ul className="py-1">
-                                        {["Today", "Yesterday", "Last 7 Days", "Last 30 Days", "Last Month", "Current Month", "Lifetime", "Choose Date"].map((option) => (
-                                            <li 
-                                                key={option} 
-                                                className={cn(
-                                                    "px-4 py-2 text-sm hover:bg-gray-50 cursor-pointer",
-                                                    selectedOption === option && "bg-blue-50 text-blue-600"
-                                                )}
-                                                onClick={() => handleDateOptionSelect(option)}
-                                            >
-                                                {option}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Calendar */}
-                            {showCalendar && inputRect && (
-                                <div 
-                                    ref={calendarRef}
-                                    className="fixed z-50"
-                                    style={{ 
-                                        top: `${inputRect.bottom + 4}px`,
-                                        left: `${inputRect.left}px`,
-                                    }}
-                                >
-                                    {renderSimpleCalendar()}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* AWB */}
-                        <div>
-                            <Label className="text-sm font-medium text-gray-500">AWB</Label>
-                            <Input
-                                placeholder="AWB Number"
-                                value={filters.awb}
-                                onChange={(e) => handleFilterChange("awb", e.target.value)}
-                                className="mt-1"
-                            />
-                        </div>
-
-                        {/* Product Name */}
-                        <div>
-                            <Label className="text-sm font-medium text-gray-500">Product Name</Label>
-                            <Input
-                                placeholder="Product Name"
-                                value={filters.productName}
-                                onChange={(e) => handleFilterChange("productName", e.target.value)}
-                                className="mt-1"
-                            />
-                        </div>
-
-                        {/* Couriers with dropdown */}
-                        <div className="relative">
-                            <Label className="text-sm font-medium text-gray-500">Couriers</Label>
-                            <div className="relative mt-1">
-                                <Input
-                                    ref={courierInputRef}
-                                    placeholder="Courier"
-                                    value={filters.courier}
-                                    onChange={(e) => handleFilterChange("courier", e.target.value)}
-                                    onClick={() => setShowCourierDropdown(true)}
-                                    className="w-full cursor-pointer"
-                                />
-                                <div 
-                                    className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer"
-                                    onClick={() => setShowCourierDropdown(!showCourierDropdown)}
-                                >
-                                    <ChevronDown className="h-4 w-4 text-gray-400" />
-                                </div>
-                            </div>
-
-                            {/* Courier Dropdown */}
-                            {showCourierDropdown && (
-                                <div 
-                                    ref={courierDropdownRef}
-                                    className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg"
-                                >
-                                    <div className="max-h-60 overflow-auto">
-                                        <div 
-                                            className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer"
-                                            onClick={() => handleCourierSelect("Courier")}
-                                        >
-                                            Courier
-                                        </div>
-                                        {courierOptions.map((option) => (
-                                            <div 
-                                                key={option} 
-                                                className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer"
-                                                onClick={() => handleCourierSelect(option)}
-                                            >
-                                                {option}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Filter Actions */}
-                    <div className="flex justify-end gap-2 mt-4">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleClear}
-                            className="text-red-500 border-red-500 hover:bg-red-50"
-                        >
-                            Clear
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleFilter}
-                            className="bg-[#7F56D9] text-white hover:bg-[#6941C6]"
-                        >
-                            <Filter className="w-4 h-4 mr-2" />
-                            Filter
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="bg-[#039855] text-white hover:bg-[#027A48]"
-                        >
-                            Export
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {/* Upload Dialog */}
-            {showUploadDialog && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                    <div className="bg-white rounded-md shadow-lg w-full max-w-md">
-                        <div className="p-4 flex justify-between items-center border-b">
-                            <h2 className="text-lg font-medium">Upload MIS report</h2>
-                            <button 
-                                onClick={handleCloseUploadDialog}
-                                className="text-gray-500 hover:text-gray-700"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-6">
-                            {uploadStatus && (
-                                <div className={`p-3 mb-4 rounded-md ${uploadStatus.success ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-                                    {uploadStatus.message}
-                                </div>
-                            )}
-                            
+            {/* Disputes Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {disputes.map((dispute) => (
+                    <Card key={dispute.id} className="p-6">
+                        <div className="flex items-start justify-between mb-4">
                             <div>
-                                <label className="text-sm font-medium text-gray-700 flex items-center">
-                                    Select File* <span className="text-xs text-gray-500 ml-2">Upto 10MB</span>
-                                </label>
-                                <div className="mt-1 flex">
-                                    <input
-                                        type="file"
-                                        id="file-upload"
-                                        className="sr-only"
-                                        onChange={handleFileChange}
-                                    />
-                                    <label
-                                        htmlFor="file-upload"
-                                        className="cursor-pointer bg-white py-2 px-4 border border-gray-300 rounded-l-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                    >
-                                        Choose File
-                                    </label>
-                                    <span className="flex-1 py-2 px-3 text-gray-500 bg-gray-50 border border-l-0 border-gray-300 rounded-r-md">
-                                        {selectedFile ? selectedFile.name : "No file chosen"}
-                                    </span>
-                                </div>
+                                <h3 className="font-semibold">Order #{dispute.orderId}</h3>
+                                <p className="text-sm text-gray-500">
+                                    Tracking: {dispute.trackingNumber}
+                                </p>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                                <Badge
+                                    className={
+                                        dispute.status === 'resolved'
+                                            ? 'bg-green-100 text-green-800'
+                                            : dispute.status === 'rejected'
+                                            ? 'bg-red-100 text-red-800'
+                                            : dispute.status === 'in_review'
+                                            ? 'bg-yellow-100 text-yellow-800'
+                                            : 'bg-blue-100 text-blue-800'
+                                    }
+                                >
+                                    {dispute.status}
+                                </Badge>
+                                <Badge
+                                    className={
+                                        dispute.priority === 'urgent'
+                                            ? 'bg-red-100 text-red-800'
+                                            : dispute.priority === 'high'
+                                            ? 'bg-orange-100 text-orange-800'
+                                            : dispute.priority === 'medium'
+                                            ? 'bg-yellow-100 text-yellow-800'
+                                            : 'bg-green-100 text-green-800'
+                                    }
+                                >
+                                    {dispute.priority}
+                                </Badge>
                             </div>
                         </div>
-                        <div className="p-4 bg-gray-50 flex justify-end gap-2">
+                        <div className="space-y-2 mb-4">
+                            <p className="text-sm">
+                                <span className="font-medium">Type:</span> {dispute.type}
+                            </p>
+                            <p className="text-sm">
+                                <span className="font-medium">Weight Difference:</span>{' '}
+                                {Math.abs(dispute.claimedWeight - dispute.actualWeight)} lbs
+                            </p>
+                            <p className="text-sm">
+                                <span className="font-medium">Customer:</span>{' '}
+                                {dispute.customer.name}
+                            </p>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500">
+                                Created {formatDate(new Date(dispute.createdAt))}
+                            </span>
                             <Button
                                 variant="outline"
-                                size="sm"
-                                className="bg-blue-500 text-white hover:bg-blue-600"
-                                onClick={handleSampleFileDownload}
+                                onClick={() => window.location.href = `/seller/dashboard/weight-dispute/${dispute.id}`}
                             >
-                                <FileText className="w-4 h-4 mr-2" />
-                                Sample file
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="bg-red-500 text-white hover:bg-red-600"
-                                onClick={handleCloseUploadDialog}
-                            >
-                                <X className="w-4 h-4 mr-2" />
-                                Close
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="bg-purple-500 text-white hover:bg-purple-600"
-                                onClick={handleUpload}
-                                disabled={!selectedFile || isLoading}
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-solid border-white border-r-transparent"></div>
-                                        Uploading...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Upload className="w-4 h-4 mr-2" />
-                                        Upload MIS
-                                    </>
-                                )}
+                                View Details
                             </Button>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            <div className="bg-white rounded-lg shadow">
-                {dataError && (
-                    <div className="bg-red-50 p-4 text-red-800 border border-red-200 rounded-md m-4">
-                        {dataError}
-                        <button 
-                            className="ml-2 text-red-600 underline"
-                            onClick={() => fetchDisputes()}
-                        >
-                            Retry
-                        </button>
-                    </div>
-                )}
-                
-                {isDataLoading ? (
-                    <div className="p-8 text-center">
-                        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-purple-500 border-r-transparent"></div>
-                        <p className="mt-2 text-sm text-gray-500">Loading weight disputes...</p>
-                    </div>
-                ) : (
-                    <DisputeTable data={disputes} />
-                )}
+                    </Card>
+                ))}
             </div>
         </div>
     );
 };
-
-// Update the date picker styles
 
 export default SellerWeightDisputePage; 

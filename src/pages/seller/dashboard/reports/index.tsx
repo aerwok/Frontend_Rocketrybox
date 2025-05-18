@@ -1,165 +1,199 @@
+import { useState } from 'react';
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { useState } from "react";
-import { DateRange } from "react-day-picker";
-import { Download, FileText, TrendingUp, Package, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/select";
+import { Table } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import { useReports, useReportGeneration, useReportStats } from '@/hooks/useReports';
+import { format } from 'date-fns';
 
-const reportTypes = [
-    {
-        id: "sales",
-        title: "Sales Report",
-        description: "View your sales performance and revenue trends",
-        icon: TrendingUp,
-    },
-    {
-        id: "shipments",
-        title: "Shipment Report",
-        description: "Track shipment status and delivery performance",
-        icon: Package,
-    },
-    {
-        id: "ndr",
-        title: "NDR Report",
-        description: "Monitor non-delivery reports and resolution status",
-        icon: AlertTriangle,
-    },
-    {
-        id: "billing",
-        title: "Billing Report",
-        description: "View billing history and payment status",
-        icon: FileText,
-    },
+// Define runtime arrays for select options
+const REPORT_TYPES = [
+  { value: 'sales', label: 'Sales Report' },
+  { value: 'inventory', label: 'Inventory Report' },
+  { value: 'shipping', label: 'Shipping Report' },
+  { value: 'returns', label: 'Returns Report' },
+  { value: 'customer', label: 'Customer Report' },
+  { value: 'financial', label: 'Financial Report' },
+];
+const REPORT_FORMATS = [
+  { value: 'pdf', label: 'PDF' },
+  { value: 'excel', label: 'Excel' },
+  { value: 'csv', label: 'CSV' },
+];
+const REPORT_STATUSES = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'processing', label: 'Processing' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'failed', label: 'Failed' },
 ];
 
-const SellerReportsPage = () => {
-    const [selectedReport, setSelectedReport] = useState<string>("");
-    const [dateRange, setDateRange] = useState<DateRange | undefined>();
-
-    const handleGenerateReport = () => {
-        if (!selectedReport) {
-            toast.error("Please select a report type");
-            return;
-        }
-
-        if (!dateRange?.from || !dateRange?.to) {
-            toast.error("Please select a date range");
-            return;
-        }
-
-        // Simulate report generation
-        toast.success("Report generated successfully!");
-    };
-
-    const handleDownloadReport = () => {
-        if (!selectedReport) {
-            toast.error("Please select a report type");
-            return;
-        }
-
-        // Simulate report download
-        toast.success("Report downloaded successfully!");
-    };
-
-    return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <h1 className="text-xl lg:text-2xl font-semibold">
-                    Reports
-                </h1>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <FileText className="size-4" />
-                    <span>Generate and download reports</span>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {reportTypes.map((report) => (
-                    <Card
-                        key={report.id}
-                        className={cn(
-                            "cursor-pointer transition-colors",
-                            selectedReport === report.id && "border-primary"
-                        )}
-                        onClick={() => setSelectedReport(report.id)}
-                    >
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <report.icon className="size-5" />
-                                {report.title}
-                            </CardTitle>
-                            <CardDescription>{report.description}</CardDescription>
-                        </CardHeader>
-                    </Card>
-                ))}
-            </div>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Generate Report</CardTitle>
-                    <CardDescription>
-                        Select report type and date range to generate a report
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Report Type</label>
-                            <Select
-                                value={selectedReport}
-                                onValueChange={setSelectedReport}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select report type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {reportTypes.map((report) => (
-                                        <SelectItem key={report.id} value={report.id}>
-                                            {report.title}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Date Range</label>
-                            <DateRangePicker
-                                value={dateRange}
-                                onChange={setDateRange}
-                                className="w-full"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex gap-4">
-                        <Button onClick={handleGenerateReport}>
-                            Generate Report
-                        </Button>
-                        <Button variant="outline" onClick={handleDownloadReport}>
-                            <Download className="size-4 mr-2" />
-                            Download
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-    );
+const ReportStatusBadge = ({ status }: { status: string }) => {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'success';
+      case 'processing':
+        return 'warning';
+      case 'failed':
+        return 'error';
+      default:
+        return 'default';
+    }
+  };
+  return <Badge color={getStatusColor(status)}>{status}</Badge>;
 };
 
-export default SellerReportsPage; 
+export default function ReportsPage() {
+  const [selectedType, setSelectedType] = useState<string>('sales');
+  const [selectedFormat, setSelectedFormat] = useState<string>('pdf');
+
+  const { reports, loading, error, filters, updateFilters } = useReports();
+  const { loading: generating, generateReport } = useReportGeneration();
+  const { stats, loading: statsLoading } = useReportStats();
+
+  const handleGenerateReport = async () => {
+    const report = await generateReport(selectedType, selectedFormat);
+    if (report) {
+      updateFilters({ page: 1 });
+    }
+  };
+
+  if (loading || statsLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center">
+        <p className="text-red-500 mb-4">{error}</p>
+        <Button onClick={() => updateFilters({ page: 1 })}>Retry</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <div className="p-4">
+            <h3 className="text-lg font-semibold mb-2">Total Reports</h3>
+            <p className="text-3xl font-bold">{stats?.totalReports || 0}</p>
+          </div>
+        </Card>
+        <Card>
+          <div className="p-4">
+            <h3 className="text-lg font-semibold mb-2">Completed Reports</h3>
+            <p className="text-3xl font-bold">{stats?.completedReports || 0}</p>
+          </div>
+        </Card>
+        <Card>
+          <div className="p-4">
+            <h3 className="text-lg font-semibold mb-2">Failed Reports</h3>
+            <p className="text-3xl font-bold">{stats?.failedReports || 0}</p>
+          </div>
+        </Card>
+      </div>
+
+      {/* Generate Report Section */}
+      <Card>
+        <div className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Generate New Report</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Select
+              label="Report Type"
+              value={selectedType}
+              onChange={setSelectedType}
+              options={REPORT_TYPES}
+            />
+            <Select
+              label="Format"
+              value={selectedFormat}
+              onChange={setSelectedFormat}
+              options={REPORT_FORMATS}
+            />
+            <div className="flex items-end">
+              <Button
+                onClick={handleGenerateReport}
+                loading={generating}
+                className="w-full"
+              >
+                Generate Report
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Reports Table */}
+      <Card>
+        <div className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Generated Reports</h2>
+          <Table
+            data={reports}
+            columns={[
+              {
+                header: 'Type',
+                accessor: 'type',
+                cell: (value) => REPORT_TYPES.find(opt => opt.value === value)?.label || value,
+              },
+              {
+                header: 'Format',
+                accessor: 'format',
+                cell: (value) => REPORT_FORMATS.find(opt => opt.value === value)?.label || value,
+              },
+              {
+                header: 'Status',
+                accessor: 'status',
+                cell: (value) => <ReportStatusBadge status={value} />,
+              },
+              {
+                header: 'Created At',
+                accessor: 'createdAt',
+                cell: (value) => format(new Date(value), 'MMM dd, yyyy HH:mm'),
+              },
+              {
+                header: 'Completed At',
+                accessor: 'completedAt',
+                cell: (value) => value ? format(new Date(value), 'MMM dd, yyyy HH:mm') : '-',
+              },
+              {
+                header: 'Actions',
+                accessor: 'id',
+                cell: (value, row) => (
+                  <div className="flex space-x-2">
+                    {row.status === 'completed' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(row.downloadUrl, '_blank')}
+                      >
+                        Download
+                      </Button>
+                    )}
+                    {row.status === 'processing' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        color="error"
+                        onClick={() => reportApi.cancelReport(value)}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          />
+        </div>
+      </Card>
+    </div>
+  );
+} 

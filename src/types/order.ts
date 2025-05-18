@@ -68,21 +68,18 @@ export interface OrderItem {
  * Represents a complete order
  */
 export interface Order extends BaseEntity {
-    orderId: string;
+    id: string;
+    orderNumber: string;
     customerName: string;
     customerEmail: string;
     customerPhone: string;
-    shippingAddress: ShippingAddress;
-    items: OrderItem[];
-    subtotal: number;
-    shippingCost: number;
-    tax: number;
-    total: number;
     status: OrderStatus;
-    paymentStatus: PaymentStatus;
-    courier?: string;
-    trackingNumber?: string;
-    notes?: string;
+    totalAmount: number;
+    items: OrderItem[];
+    shippingAddress: Address;
+    paymentMethod: PaymentMethod;
+    createdAt: string;
+    updatedAt: string;
 }
 
 /**
@@ -102,8 +99,11 @@ export interface OrderListResponse {
  * Represents the response from a single order endpoint
  */
 export interface OrderResponse {
-    data: Order;
-    message: string;
+    orders: Order[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
 }
 
 /**
@@ -112,9 +112,9 @@ export interface OrderResponse {
  */
 export interface OrderFilters {
     status?: OrderStatus;
-    search?: string;
     startDate?: string;
     endDate?: string;
+    search?: string;
     page?: number;
     limit?: number;
 }
@@ -244,4 +244,43 @@ export interface OrderStats {
         pending: number;
         completed: number;
     };
+}
+
+export interface Address {
+    street: string;
+    city: string;
+    state: string;
+    pincode: string;
+    country: string;
+}
+
+export type OrderStatus = 
+  | 'pending'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
+
+export type PaymentMethod = 
+  | 'credit_card'
+  | 'debit_card'
+  | 'upi'
+  | 'net_banking'
+  | 'cod';
+
+export interface OrderFilters {
+  status?: OrderStatus;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface OrderResponse {
+  orders: Order[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 } 

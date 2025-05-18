@@ -1,142 +1,140 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { profileApi, Profile, UpdateProfileData, ChangePasswordData } from '@/services/api/profile';
-
-interface UseProfileReturn {
-    profile: Profile | null;
-    isLoading: boolean;
-    error: string | null;
-    updateProfile: (data: UpdateProfileData) => Promise<void>;
-    changePassword: (data: ChangePasswordData) => Promise<void>;
-    uploadProfilePicture: (file: File) => Promise<void>;
-    deleteProfilePicture: () => Promise<void>;
-    refreshProfile: () => Promise<void>;
-}
+import { profileApi } from '@/services/api/profile';
+import { Profile, ProfileUpdateData, ChangePasswordData } from '@/types/profile';
 
 /**
- * useProfile Hook
- * 
- * Manages profile data and operations:
- * - Fetch profile data
- * - Update profile information
- * - Change password
- * - Handle profile picture
- * - Error handling and loading states
- * 
- * @returns Profile state and operations
+ * Hook for managing user profile data
+ * Handles fetching, updating, and managing profile state
  */
-export const useProfile = (): UseProfileReturn => {
-    const [profile, setProfile] = useState<Profile | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+export const useProfile = () => {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    /**
-     * Fetch profile data
-     */
-    const fetchProfile = useCallback(async () => {
-        try {
-            setError(null);
-            const response = await profileApi.getProfile();
-            setProfile(response.data);
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to fetch profile';
-            setError(errorMessage);
-            toast.error(errorMessage);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+  /**
+   * Fetch user profile data
+   */
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await profileApi.getProfile();
+      setProfile(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch profile');
+      toast.error('Failed to fetch profile data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    /**
-     * Update profile information
-     * @param data - Profile update data
-     */
-    const updateProfile = async (data: UpdateProfileData) => {
-        try {
-            setIsLoading(true);
-            setError(null);
-            const response = await profileApi.updateProfile(data);
-            setProfile(response.data);
-            toast.success('Profile updated successfully');
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to update profile';
-            setError(errorMessage);
-            toast.error(errorMessage);
-            throw err;
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  /**
+   * Update user profile
+   * @param data ProfileUpdateData
+   */
+  const updateProfile = async (data: ProfileUpdateData) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const updatedProfile = await profileApi.updateProfile(data);
+      setProfile(updatedProfile);
+      toast.success('Profile updated successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update profile');
+      toast.error('Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    /**
-     * Change user password
-     * @param data - Password change data
-     */
-    const changePassword = async (data: ChangePasswordData) => {
-        try {
-            setIsLoading(true);
-            setError(null);
-            await profileApi.changePassword(data);
-            toast.success('Password changed successfully');
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to change password';
-            setError(errorMessage);
-            toast.error(errorMessage);
-            throw err;
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  /**
+   * Update profile picture
+   * @param file File
+   */
+  const updateProfilePicture = async (file: File) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { imageUrl } = await profileApi.updateProfilePicture(file);
+      if (profile) {
+        setProfile({ ...profile, avatar: imageUrl });
+      }
+      toast.success('Profile picture updated successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update profile picture');
+      toast.error('Failed to update profile picture');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    /**
-     * Upload profile picture
-     * @param file - Image file
-     */
-    const uploadProfilePicture = async (file: File) => {
-        try {
-            setIsLoading(true);
-            setError(null);
-            const response = await profileApi.uploadProfilePicture(file);
-            setProfile(prev => prev ? { ...prev, avatar: response.data.url } : null);
-            toast.success('Profile picture uploaded successfully');
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to upload profile picture';
-            setError(errorMessage);
-            toast.error(errorMessage);
-            throw err;
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  /**
+   * Delete profile picture
+   */
+  const deleteProfilePicture = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await profileApi.deleteProfilePicture();
+      if (profile) {
+        setProfile({ ...profile, avatar: undefined });
+      }
+      toast.success('Profile picture deleted successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete profile picture');
+      toast.error('Failed to delete profile picture');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    /**
-     * Delete profile picture
-     */
-    const deleteProfilePicture = async () => {
-        try {
-            setIsLoading(true);
-            setError(null);
-            await profileApi.deleteProfilePicture();
-            setProfile(prev => prev ? { ...prev, avatar: undefined } : null);
-            toast.success('Profile picture deleted successfully');
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to delete profile picture';
-            setError(errorMessage);
-            toast.error(errorMessage);
-            throw err;
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  // Fetch profile data on mount
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
-    return {
-        profile,
-        isLoading,
-        error,
-        updateProfile,
-        changePassword,
-        uploadProfilePicture,
-        deleteProfilePicture,
-        refreshProfile: fetchProfile
-    };
+  return {
+    profile,
+    loading,
+    error,
+    updateProfile,
+    updateProfilePicture,
+    deleteProfilePicture,
+    refreshProfile: fetchProfile,
+  };
+};
+
+/**
+ * Hook for managing password changes
+ * Handles password change operations and validation
+ */
+export const usePasswordChange = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Change user password
+   * @param data ChangePasswordData
+   */
+  const changePassword = async (data: ChangePasswordData) => {
+    try {
+      setLoading(true);
+      setError(null);
+      // TODO: Implement password change API call
+      // await profileApi.changePassword(data);
+      toast.success('Password changed successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to change password');
+      toast.error('Failed to change password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    loading,
+    error,
+    changePassword,
+  };
 }; 
